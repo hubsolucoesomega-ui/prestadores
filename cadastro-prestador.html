@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cadastro de prestador | OmegaHub</title>
+<style>
+  :root { --primary:#0f3a66; --primary-deep:#0b2a4a; --foreground:#13294b; --muted:#6b7a90; --border:#d5dbe5; --bg:#fbfaf7; --gold:#f7c52b; --danger:#b42318; --ok:#067647; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Arial, Helvetica, sans-serif; font-size:14px; line-height:1.45; color:var(--foreground); background:var(--bg); }
+  header { background:var(--primary-deep); color:#fff; padding:12px 16px; font-weight:700; }
+  main { max-width:720px; margin:0 auto; padding:20px 16px 48px; }
+  h1 { font-size:20px; margin:0 0 6px; }
+  h2 { font-size:15px; margin:26px 0 10px; padding-top:14px; border-top:1px solid var(--border); }
+  .lead { color:var(--muted); margin:0 0 14px; }
+  .demo { background:#fff7e0; border:1px solid #f0d27a; padding:10px 12px; border-radius:6px; margin-bottom:16px; font-size:13px; }
+  label { display:block; font-weight:700; font-size:13px; margin:12px 0 4px; }
+  .hint { font-weight:400; color:var(--muted); font-size:12px; margin-top:3px; }
+  input, select, textarea { width:100%; height:40px; border:1px solid #c5ccd8; border-radius:6px; padding:0 10px; font:inherit; background:#fff; }
+  textarea { height:auto; min-height:80px; padding:8px 10px; }
+  .row { display:grid; gap:12px; grid-template-columns:1fr; }
+  @media (min-width:640px){ .row.two { grid-template-columns:1fr 1fr; } }
+  .types { display:grid; gap:8px; grid-template-columns:1fr; }
+  @media (min-width:640px){ .types { grid-template-columns:repeat(4,1fr); } }
+  .types label.card { font-weight:400; border:1px solid var(--border); border-radius:8px; padding:10px; margin:0; background:#fff; cursor:pointer; }
+  .types input { width:auto; height:auto; margin-right:6px; }
+  .types .card strong { font-size:13px; }
+  .types .card small { display:block; color:var(--muted); margin-top:4px; font-size:12px; }
+  .file { border:1px dashed #b9c2d0; border-radius:8px; padding:10px; background:#fff; }
+  .file input { height:auto; border:0; padding:4px 0; }
+  .check { display:flex; gap:8px; align-items:flex-start; font-weight:400; margin-top:14px; }
+  .check input { width:auto; height:auto; margin-top:3px; }
+  .err { color:var(--danger); font-size:12px; margin-top:4px; min-height:0; }
+  .alert { padding:12px; border-radius:8px; margin:12px 0; display:none; }
+  .alert.ok { display:block; background:#e8f6ee; color:var(--ok); }
+  .alert.fail { display:block; background:#fdecea; color:var(--danger); }
+  button.submit { margin-top:20px; width:100%; height:44px; border:0; border-radius:6px; background:var(--primary); color:#fff; font:inherit; font-weight:700; cursor:pointer; }
+  button.submit:disabled { opacity:.6; cursor:wait; }
+  .registry { display:none; }
+  .registry.show { display:block; }
+</style>
+</head>
+<body>
+<header>OmegaHub · Cadastro de prestador</header>
+<main>
+  <h1>Quero ser prestador</h1>
+  <p class="lead">Preencha os dados abaixo. Seu cadastro será analisado antes de aparecer no site.</p>
+
+  <div class="demo" id="demo-banner" hidden>
+    <strong>Modo demonstração.</strong> Os dados ficam salvos só neste navegador. Para salvar de verdade, configure o Supabase em <code>assets/js/config.js</code>.
+  </div>
+
+  <form id="form" novalidate>
+
+    <h2>1. Como você atua</h2>
+    <div class="types" role="radiogroup" aria-label="Tipo de cadastro">
+      <label class="card"><input type="radio" name="provider_type" value="PF" checked><strong>Pessoa física</strong><small>Sem CNPJ. Usa seu CPF.</small></label>
+      <label class="card"><input type="radio" name="provider_type" value="MEI"><strong>MEI</strong><small>CNPJ de Microempreendedor Individual. Emite nota.</small></label>
+      <label class="card"><input type="radio" name="provider_type" value="ME"><strong>ME / EPP</strong><small>Microempresa ou empresa de pequeno porte.</small></label>
+      <label class="card"><input type="radio" name="provider_type" value="PJ"><strong>Empresa (PJ)</strong><small>Outras empresas com CNPJ.</small></label>
+    </div>
+
+    <h2>2. Seus dados</h2>
+    <div class="row two">
+      <div><label for="full_name">Nome completo *</label><input id="full_name" name="full_name" autocomplete="name"><div class="err" data-err="full_name"></div></div>
+      <div><label for="cpf">CPF *</label><input id="cpf" name="cpf" inputmode="numeric" placeholder="000.000.000-00"><div class="err" data-err="cpf"></div></div>
+    </div>
+    <div class="row two">
+      <div><label for="email">E-mail *</label><input id="email" name="email" type="email" autocomplete="email"><div class="err" data-err="email"></div></div>
+      <div><label for="phone">WhatsApp *</label><input id="phone" name="phone" inputmode="tel" placeholder="(00) 00000-0000"><div class="err" data-err="phone"></div></div>
+    </div>
+    <div class="row" id="cnpj-row" style="display:none">
+      <div><label for="cnpj">CNPJ *</label><input id="cnpj" name="cnpj" inputmode="numeric" placeholder="00.000.000/0000-00"><div class="hint">Obrigatório para MEI, ME e empresas.</div><div class="err" data-err="cnpj"></div></div>
+    </div>
+    <div class="row two">
+      <div><label for="city">Cidade *</label><input id="city" name="city"><div class="err" data-err="city"></div></div>
+      <div><label for="uf">UF *</label>
+        <select id="uf" name="uf"><option value="">Selecione</option>
+          <option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MT</option><option>MS</option><option>MG</option><option>PA</option><option>PB</option><option>PR</option><option>PE</option><option>PI</option><option>RJ</option><option>RN</option><option>RS</option><option>RO</option><option>RR</option><option>SC</option><option>SP</option><option>SE</option><option>TO</option>
+        </select><div class="err" data-err="uf"></div></div>
+    </div>
+    <div><label for="service_area">Área de atendimento *</label><input id="service_area" name="service_area" placeholder="Ex.: Curitiba e região, bairros centro e batel"><div class="err" data-err="service_area"></div></div>
+
+    <h2>3. Serviço</h2>
+    <div class="row two">
+      <div><label for="category">Categoria *</label>
+        <select id="category" name="category">
+          <option value="">Selecione</option>
+          <option>Marketing</option><option>Contabilidade</option><option>Terapia</option><option>Cuidado de idosos</option><option>Seguros</option><option>Advogados</option><option>Casa e reparos</option>
+        </select><div class="err" data-err="category"></div></div>
+      <div><label for="years_experience">Anos de experiência *</label><input id="years_experience" name="years_experience" type="number" min="0" max="60"><div class="err" data-err="years_experience"></div></div>
+    </div>
+    <div class="registry" id="registry-block">
+      <div class="row two">
+        <div><label for="registry_kind" id="registry-label">Registro profissional *</label><input id="registry_kind" name="registry_kind" placeholder="Ex.: OAB/PR 12345"><div class="hint" id="registry-hint"></div><div class="err" data-err="professional_registry"></div></div>
+      </div>
+    </div>
+    <div><label for="description">Descrição do seu trabalho (até 300 caracteres)</label><textarea id="description" name="description" maxlength="300"></textarea><div class="hint"><span id="desc-count">0</span>/300</div></div>
+
+    <h2>4. Documentos</h2>
+    <p class="hint" style="margin:0 0 8px">Os arquivos são privados e usados só para verificação. Aceitos: PDF, JPG ou PNG.</p>
+    <div class="row">
+      <div class="file"><label for="doc_identity">Documento com foto (RG ou CNH) *</label><input id="doc_identity" type="file" accept=".pdf,.jpg,.jpeg,.png"><div class="err" data-err="doc_identity"></div></div>
+      <div class="file"><label for="doc_address">Comprovante de endereço (últimos 90 dias) *</label><input id="doc_address" type="file" accept=".pdf,.jpg,.jpeg,.png"><div class="err" data-err="doc_address"></div></div>
+      <div class="file" id="doc-cnpj-wrap" style="display:none"><label for="doc_cnpj">Cartão CNPJ *</label><input id="doc_cnpj" type="file" accept=".pdf,.jpg,.jpeg,.png"><div class="err" data-err="doc_cnpj"></div></div>
+      <div class="file" id="doc-registry-wrap" style="display:none"><label for="doc_registry" id="doc-registry-label">Comprovante do registro profissional *</label><input id="doc_registry" type="file" accept=".pdf,.jpg,.jpeg,.png"><div class="err" data-err="doc_registry"></div></div>
+      <div class="file" id="doc-record-wrap" style="display:none"><label for="doc_record">Certidão de antecedentes criminais *</label><input id="doc_record" type="file" accept=".pdf,.jpg,.jpeg,.png"><div class="hint">Exigida para cuidado de idosos e terapia.</div><div class="err" data-err="doc_record"></div></div>
+    </div>
+
+    <h2>5. Dados para recebimento</h2>
+    <div class="row two">
+      <div><label for="bank_name">Banco *</label><input id="bank_name" name="bank_name"><div class="err" data-err="bank_name"></div></div>
+      <div><label for="account_type">Tipo de conta *</label>
+        <select id="account_type" name="account_type"><option value="corrente">Corrente</option><option value="poupanca">Poupança</option></select></div>
+    </div>
+    <div class="row two">
+      <div><label for="bank_agency">Agência *</label><input id="bank_agency" name="bank_agency" inputmode="numeric"><div class="err" data-err="bank_agency"></div></div>
+      <div><label for="bank_account">Conta com dígito *</label><input id="bank_account" name="bank_account" inputmode="numeric"><div class="hint">O titular da conta deve ser você (CPF) ou a empresa (CNPJ).</div><div class="err" data-err="bank_account"></div></div>
+    </div>
+
+    <h2>6. Termos</h2>
+    <label class="check"><input type="checkbox" id="terms" name="terms"> <span>Li e aceito os termos de uso e a política de privacidade, e autorizo a análise dos meus dados e documentos para verificação. *</span></label>
+    <div class="err" data-err="terms"></div>
+
+    <div class="alert" id="alert" role="status"></div>
+    <button class="submit" id="submit" type="submit">Enviar cadastro para análise</button>
+  </form>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="assets/js/config.js"></script>
+<script src="assets/js/common.js"></script>
+<script src="assets/js/cadastro.js"></script>
+</body>
+</html>
