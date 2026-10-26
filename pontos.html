@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Meus pontos | OmegaHub</title>
+<style>
+  :root { --primary:#0f3a66; --primary-deep:#0b2a4a; --gold:#f7c52b; --fg:#13294b; --muted:#6b7a90; --border:#d5dbe5; --bg:#f4f6fa; --ok:#067647; --warn:#b54708; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Arial, Helvetica, sans-serif; font-size:15px; color:var(--fg); background:var(--bg); line-height:1.5; }
+  header { background:var(--primary-deep); color:#fff; padding:14px 16px; }
+  header strong { font-size:16px; }
+  main { max-width:720px; margin:0 auto; padding:16px; }
+  .demo { background:#fff7e0; border:1px solid #f0d27a; padding:10px 12px; border-radius:8px; font-size:13px; margin-bottom:14px; }
+  .card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:14px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  h2 { font-size:16px; margin:0 0 10px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .points { font-size:36px; font-weight:700; color:var(--primary); margin:6px 0 2px; }
+  .bar { height:12px; background:#e6ebf2; border-radius:999px; overflow:hidden; margin:10px 0 6px; }
+  .bar span { display:block; height:100%; background:var(--gold); width:0%; transition:width .3s; }
+  .btn { display:inline-block; height:42px; padding:0 16px; border-radius:8px; border:0; background:var(--primary); color:#fff; font:inherit; font-weight:700; cursor:pointer; }
+  .btn[disabled] { background:#aab4c3; cursor:not-allowed; }
+  .btn.gold { background:var(--gold); color:var(--primary-deep); }
+  .btn.ghost { background:#fff; color:var(--primary); border:1px solid var(--primary); }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .tag { display:inline-block; font-size:12px; font-weight:700; padding:2px 8px; border-radius:999px; background:#eef2f7; color:var(--fg); }
+  ul.rules { margin:0; padding-left:18px; }
+  ul.rules li { margin:6px 0; }
+  .hist { font-size:13px; color:var(--muted); margin:6px 0 0; padding:0; list-style:none; }
+  .hist li { padding:6px 0; border-top:1px solid #eef2f7; }
+  .hidden { display:none !important; }
+  input.ref { flex:1; min-width:200px; height:40px; border:1px solid #c5ccd8; border-radius:8px; padding:0 10px; font:inherit; }
+</style>
+</head>
+<body>
+<header><strong>OmegaHub · Meus pontos</strong></header>
+
+<main>
+  <div class="demo"><strong>Demonstração.</strong> Os pontos ficam só neste navegador. Nenhum cupom é gerado de verdade e nenhuma compra é registrada. A regra de resgate depende de decisão comercial ainda não aprovada.</div>
+
+  <section class="card" aria-labelledby="t-saldo">
+    <h1 id="t-saldo">Seus pontos</h1>
+    <div class="muted">Meta do vale-serviço: <span id="meta">300</span> pontos</div>
+    <div class="points" id="saldo" aria-live="polite">0</div>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="300" aria-valuenow="0" id="barra"><span id="barra-fill"></span></div>
+    <div class="muted" id="falta">Faltam 300 pontos para o vale-serviço.</div>
+  </section>
+
+  <section class="card" aria-labelledby="t-checkin">
+    <h2 id="t-checkin">Check-in diário</h2>
+    <p class="muted">Ganhe 10 pontos por dia. Um check-in por dia.</p>
+    <div class="row">
+      <button class="btn" id="btn-checkin" type="button">Fazer check-in</button>
+      <span class="muted" id="msg-checkin"></span>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="t-indicar">
+    <h2 id="t-indicar">Indicar</h2>
+    <ul class="rules">
+      <li><span class="tag">+50</span> quando um cliente indicado faz a primeira compra.</li>
+      <li><span class="tag">+100</span> quando um prestador indicado é aprovado no cadastro.</li>
+    </ul>
+    <p class="muted">Não é possível indicar a si mesmo, e o mesmo CPF ou CNPJ não gera pontos duplicados. Nesta demonstração, o link não é real.</p>
+    <div class="row">
+      <input class="ref" id="link" type="text" readonly value="https://omegahub.exemplo/indicacao/DEMO">
+      <button class="btn ghost" id="btn-copiar" type="button">Copiar link</button>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="t-compras">
+    <h2 id="t-compras">Compras</h2>
+    <p class="muted">Cada R$ 10 pagos em compra entregue vale 1 ponto. Esta demonstração simula uma compra de R$ 50 (5 pontos).</p>
+    <div class="row">
+      <button class="btn ghost" id="btn-compra" type="button">Simular compra de R$ 50</button>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="t-premio">
+    <h2 id="t-premio">Vale-serviço</h2>
+    <p class="muted">Ao atingir 300 pontos, você escolhe uma categoria e um prestador aprovado. O vale vale até R$ 50, com validade de 90 dias e um por período.</p>
+    <div class="row">
+      <button class="btn gold" id="btn-resgatar" type="button" disabled>Resgatar vale</button>
+      <span class="muted" id="msg-premio">Disponível quando atingir 300 pontos.</span>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="t-hist">
+    <h2 id="t-hist">Histórico</h2>
+    <ul class="hist" id="hist"><li>Nenhuma atividade ainda.</li></ul>
+  </section>
+</main>
+
+<script>
+(function () {
+  var KEY = "omegahub-pontos-demo";
+  var META = 300;
+  var state = { pontos: 0, ultimoCheckin: null, historico: [] };
+
+  function load() {
+    try {
+      var raw = window.localStorage.getItem(KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && typeof parsed.pontos === "number") state = parsed;
+      }
+    } catch (e) { /* armazenamento indisponível: segue com estado em memória */ }
+  }
+
+  function save() {
+    try { window.localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignora */ }
+  }
+
+  function hoje() {
+    var d = new Date();
+    return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
+  }
+
+  function registrar(texto, pontos) {
+    state.pontos += pontos;
+    state.historico.unshift({ texto: texto, pontos: pontos, quando: new Date().toLocaleString("pt-BR") });
+    state.historico = state.historico.slice(0, 20);
+    save();
+    render();
+  }
+
+  function render() {
+    var p = Math.min(state.pontos, META);
+    document.getElementById("saldo").textContent = state.pontos;
+    document.getElementById("barra").setAttribute("aria-valuenow", p);
+    document.getElementById("barra-fill").style.width = (p / META * 100) + "%";
+    var falta = Math.max(META - state.pontos, 0);
+    document.getElementById("falta").textContent = falta > 0
+      ? "Faltam " + falta + " pontos para o vale-serviço."
+      : "Você atingiu a meta. O resgate será liberado quando a regra comercial for aprovada.";
+
+    var jaFez = state.ultimoCheckin === hoje();
+    var btn = document.getElementById("btn-checkin");
+    btn.disabled = jaFez;
+    document.getElementById("msg-checkin").textContent = jaFez ? "Check-in de hoje já feito. Volte amanhã." : "";
+
+    var lista = document.getElementById("hist");
+    lista.innerHTML = "";
+    if (!state.historico.length) {
+      lista.innerHTML = "<li>Nenhuma atividade ainda.</li>";
+    } else {
+      state.historico.forEach(function (h) {
+        var li = document.createElement("li");
+        li.textContent = h.quando + " · " + h.texto + " (+" + h.pontos + ")";
+        lista.appendChild(li);
+      });
+    }
+  }
+
+  document.getElementById("btn-checkin").addEventListener("click", function () {
+    if (state.ultimoCheckin === hoje()) return;
+    state.ultimoCheckin = hoje();
+    registrar("Check-in diário", 10);
+  });
+
+  document.getElementById("btn-compra").addEventListener("click", function () {
+    registrar("Compra simulada de R$ 50", 5);
+  });
+
+  document.getElementById("btn-copiar").addEventListener("click", function () {
+    var campo = document.getElementById("link");
+    campo.select();
+    try { navigator.clipboard.writeText(campo.value); } catch (e) { document.execCommand("copy"); }
+    this.textContent = "Copiado";
+  });
+
+  load();
+  render();
+})();
+</script>
+</body>
+</html>
