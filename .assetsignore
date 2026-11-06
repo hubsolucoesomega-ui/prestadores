@@ -1,8 +1,0 @@
-worker.js
-wrangler.toml
-SETUP-BANCO.md
-README.md
-supabase
-.wrangler
-node_modules
-*.zip
