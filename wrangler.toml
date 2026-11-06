@@ -1,0 +1,18 @@
+name = "prestadores"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[assets]
+directory = "."
+binding = "ASSETS"
+
+# ===== Banco central (Cloudflare D1) =====
+# 1) No painel da Cloudflare: Storage & Databases > D1 > Create database > nome: omegahub
+# 2) Copie o "Database ID" e cole abaixo no lugar de COLE_AQUI_O_ID
+# 3) Tire o "#" do começo das 4 linhas abaixo e publique.
+# Enquanto estiver comentado, o site funciona como antes (dados só no navegador).
+#
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "omegahub"
+# database_id = "COLE_AQUI_O_ID"
