@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Painel ADM · Soluções Omega</title>
+<style>
+  :root { --primary:#0f3a66; --primary-deep:#0b2a4a; --foreground:#13294b; --muted:#6b7a90; --border:#d5dbe5; --bg:#f4f6fa; --danger:#b42318; --ok:#067647; --warn:#b54708; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Arial, Helvetica, sans-serif; font-size:14px; color:var(--foreground); background:var(--bg); }
+  header { background:var(--primary-deep); color:#fff; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  header strong { font-size:15px; }
+  main { padding:16px; max-width:1100px; margin:0 auto; }
+  .nav-tabs { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; border-bottom:2px solid var(--border); padding-bottom:8px; }
+  .nav-tabs button { border:none; background:none; padding:7px 14px; font:inherit; font-size:14px; cursor:pointer; border-radius:6px 6px 0 0; color:var(--muted); }
+  .nav-tabs button[aria-selected="true"] { background:var(--primary); color:#fff; }
+  .tab-pane { display:none; }
+  .tab-pane.active { display:block; }
+  .tabs { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+  .tabs button { border:1px solid var(--border); background:#fff; border-radius:999px; padding:6px 12px; font:inherit; cursor:pointer; }
+  .tabs button[aria-pressed="true"] { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .layout { display:grid; gap:14px; grid-template-columns:1fr; }
+  @media (min-width:900px){ .layout { grid-template-columns: 1fr 1fr; } }
+  .panel { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px; }
+  .item { display:block; width:100%; text-align:left; background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; font:inherit; cursor:pointer; }
+  .item:hover, .item[aria-current="true"] { border-color:var(--primary); }
+  .item strong { display:block; font-size:14px; }
+  .item span { color:var(--muted); font-size:12px; }
+  .badge { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; margin-left:6px; }
+  .s-pending { background:#fef0c7; color:var(--warn); }
+  .s-approved { background:#dcfae6; color:var(--ok); }
+  .s-rejected { background:#fee4e2; color:var(--danger); }
+  dl { display:grid; grid-template-columns: 140px 1fr; gap:6px 10px; margin:0; font-size:13px; }
+  dt { color:var(--muted); }
+  dd { margin:0; word-break:break-word; }
+  .actions { display:flex; gap:8px; margin-top:16px; flex-wrap:wrap; }
+  .actions button { height:38px; padding:0 14px; border-radius:6px; border:1px solid var(--primary); background:#fff; color:var(--primary); font:inherit; font-weight:700; cursor:pointer; }
+  .actions .approve { background:var(--primary); color:#fff; }
+  .actions .reject { border-color:var(--danger); color:var(--danger); }
+  .empty { color:var(--muted); padding:20px; text-align:center; }
+  .login { max-width:340px; margin:60px auto; background:#fff; border:1px solid var(--border); border-radius:10px; padding:18px; }
+  .login input { width:100%; height:40px; border:1px solid #c5ccd8; border-radius:6px; padding:0 10px; font:inherit; margin:6px 0 10px; }
+  .login button { width:100%; height:40px; border:0; border-radius:6px; background:var(--primary); color:#fff; font:inherit; font-weight:700; cursor:pointer; }
+  .msg { color:var(--danger); font-size:13px; min-height:18px; }
+  .docs li { margin:4px 0; }
+  .hidden { display:none !important; }
+  /* ---- Banners ---- */
+  .bn-form { background:#fff; border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .bn-form h3 { margin:0 0 12px; font-size:15px; }
+  .bn-field { margin-bottom:10px; }
+  .bn-field label { display:block; font-size:12px; font-weight:700; margin-bottom:4px; color:var(--muted); }
+  .bn-field input[type=text], .bn-field input[type=url] { width:100%; height:38px; border:1px solid var(--border); border-radius:6px; padding:0 10px; font:inherit; }
+  .bn-field input[type=file] { width:100%; font:inherit; }
+  .bn-field textarea { width:100%; border:1px solid var(--border); border-radius:6px; padding:8px 10px; font:inherit; resize:vertical; }
+  .bn-btn { height:38px; padding:0 16px; border-radius:6px; border:0; background:var(--primary); color:#fff; font:inherit; font-weight:700; cursor:pointer; }
+  .bn-btn-sec { background:#fff; border:1px solid var(--border); color:var(--foreground); }
+  .bn-list { }
+  .bn-card { display:flex; align-items:center; gap:10px; background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:8px; }
+  .bn-thumb { width:80px; height:48px; object-fit:cover; border-radius:4px; flex-shrink:0; background:#eee; }
+  .bn-thumb-vid { width:80px; height:48px; border-radius:4px; flex-shrink:0; background:#1a1a2e; display:flex; align-items:center; justify-content:center; color:#fff; font-size:22px; }
+  .bn-info { flex:1; min-width:0; }
+  .bn-info strong { display:block; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bn-info span { font-size:11px; color:var(--muted); }
+  .bn-btns { display:flex; flex-direction:column; gap:4px; }
+  .bn-btns button { height:28px; padding:0 8px; border-radius:4px; border:1px solid var(--border); background:#fff; font:inherit; font-size:12px; cursor:pointer; white-space:nowrap; }
+  .bn-btns .del-btn { border-color:var(--danger); color:var(--danger); }
+  #bn-preview-wrap { margin-top:10px; display:none; }
+  #bn-preview-img { max-width:100%; max-height:140px; border-radius:6px; border:1px solid var(--border); }
+  #bn-preview-vid { max-width:100%; max-height:140px; border-radius:6px; border:1px solid var(--border); }
+</style>
+</head>
+<body>
+<header>
+  <img src="assets/img/logo-solucoes-omega.png" alt="Soluções Omega" style="height:32px;width:auto;background:#fff;border-radius:6px;padding:3px 8px;vertical-align:middle;margin-right:10px"><strong>Painel ADM</strong>
+  <button id="logout" class="hidden" style="background:none;border:1px solid #fff;color:#fff;border-radius:6px;padding:6px 10px;font:inherit;cursor:pointer">Sair</button>
+</header>
+
+<main>
+  <section id="app">
+    <!-- Abas principais -->
+    <div class="nav-tabs" role="tablist" aria-label="Seções do painel">
+      <button role="tab" aria-selected="true"  aria-controls="tab-cadastros" id="btn-tab-cadastros">Cadastros</button>
+      <button role="tab" aria-selected="false" aria-controls="tab-banners"   id="btn-tab-banners">🖼 Banners</button>
+      <button role="tab" aria-selected="false" aria-controls="tab-cartas"      id="btn-tab-cartas">✉️ Cartas Autores</button>
+      <button role="tab" aria-selected="false" aria-controls="tab-prestadores" id="btn-tab-prestadores">👤 Prestadores</button>
+    </div>
+
+    <!-- ABA: Cadastros -->
+    <div id="tab-cadastros" class="tab-pane active" role="tabpanel" aria-labelledby="btn-tab-cadastros">
+      <div class="tabs" role="group" aria-label="Filtrar por status">
+        <button type="button" data-f="pending" aria-pressed="true">Pendentes <span id="c-pending"></span></button>
+        <button type="button" data-f="approved" aria-pressed="false">Aprovados <span id="c-approved"></span></button>
+        <button type="button" data-f="rejected" aria-pressed="false">Reprovados <span id="c-rejected"></span></button>
+        <button type="button" data-f="all" aria-pressed="false">Todos</button>
+      </div>
+      <div class="layout">
+        <div class="panel" id="list-panel"><div id="list"></div></div>
+        <div class="panel" id="detail-panel"><div class="empty" id="detail">Selecione um cadastro na lista.</div></div>
+      </div>
+    </div>
+
+    <!-- ABA: Banners -->
+    <div id="tab-banners" class="tab-pane" role="tabpanel" aria-labelledby="btn-tab-banners">
+
+      <!-- Seletor de aba de banner -->
+      <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid var(--border);padding-bottom:0">
+        <button class="bn-aba-btn" id="bn-aba-servicos" data-aba="servicos"
+          style="padding:8px 20px;border:0;background:none;font-weight:700;font-size:14px;cursor:pointer;border-bottom:3px solid var(--primary);color:var(--primary);margin-bottom:-2px">
+          🔧 Serviços
+        </button>
+        <button class="bn-aba-btn" id="bn-aba-livros" data-aba="livros"
+          style="padding:8px 20px;border:0;background:none;font-weight:600;font-size:14px;cursor:pointer;border-bottom:3px solid transparent;color:var(--muted);margin-bottom:-2px">
+          📚 Livros
+        </button>
+      </div>
+      <p id="bn-aba-label" style="font-size:12px;color:var(--muted);margin:0 0 14px">Gerenciando banners da aba <strong>Serviços</strong></p>
+
+      <div class="bn-form">
+        <h3>Adicionar banner</h3>
+        <p style="font-size:12px;color:var(--muted);margin:-8px 0 12px">⚠️ Imagens são comprimidas automaticamente para economizar espaço. Recomendado: JPG, máx. 2MB.</p>
+        <div class="bn-field">
+          <label>Arquivo (imagem JPG/PNG/WebP ou vídeo MP4)</label>
+          <input type="file" id="bn-file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm">
+        </div>
+        <div id="bn-preview-wrap">
+          <img id="bn-preview-img" src="" alt="Preview" style="display:none">
+          <video id="bn-preview-vid" src="" muted loop style="display:none"></video>
+        </div>
+        <div class="bn-field">
+          <label>Título interno (referência)</label>
+          <input type="text" id="bn-title" placeholder="Ex: Banner Serviços – Junho">
+        </div>
+        <div class="bn-field">
+          <label>Olho (linha pequena acima do título)</label>
+          <input type="text" id="bn-eyebrow" placeholder="Ex: Serviços para sua casa">
+        </div>
+        <div class="bn-field">
+          <label>Título principal (H1)</label>
+          <input type="text" id="bn-headline" placeholder="Ex: Profissionais certos.">
+        </div>
+        <div class="bn-field">
+          <label>Subtítulo</label>
+          <textarea id="bn-sub" rows="2" placeholder="Descrição curta exibida no banner"></textarea>
+        </div>
+        <div class="bn-field">
+          <label>Texto do botão CTA</label>
+          <input type="text" id="bn-cta-text" placeholder="Ex: Ver serviços">
+        </div>
+        <div class="bn-field">
+          <label>Link do botão CTA</label>
+          <input type="url" id="bn-cta-link" placeholder="Ex: #catalogo ou https://...">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button class="bn-btn" id="bn-add">Adicionar banner</button>
+          <span id="bn-msg" style="align-self:center;font-size:13px;color:var(--ok)"></span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3 style="margin:0 0 12px;font-size:15px">Banners ativos <span id="bn-count" style="color:var(--muted);font-weight:normal;font-size:13px"></span></h3>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 10px">Arraste para reordenar, ou use os botões ↑ ↓. As alterações são salvas automaticamente.</p>
+        <div id="bn-list" class="bn-list"></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="bn-btn bn-btn-sec" id="bn-reset">Restaurar banners padrão desta aba</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ABA: Cartas aos Autores -->
+    <div id="tab-cartas" class="tab-pane" role="tabpanel" aria-labelledby="btn-tab-cartas">
+      <h2 style="font-size:17px;margin:0 0 4px">✉️ Cartas dos Leitores</h2>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 20px">Mensagens enviadas pelos leitores para os autores. Clique em uma carta para imprimir em formato de carta formal.</p>
+      <div id="cartas-lista" style="display:flex;flex-direction:column;gap:12px"></div>
+      <p id="cartas-vazio" style="color:var(--muted);text-align:center;padding:32px 0;display:none">Nenhuma carta recebida ainda.</p>
+    </div>
+
+    <!-- ABA: Prestadores -->
+    <!-- ABA: Prestadores -->
+    <div id="tab-prestadores" class="tab-pane" role="tabpanel" aria-labelledby="btn-tab-prestadores">
+      <style>
+        .prest-stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+        .prest-stat{background:#fff;border:2px solid var(--border);border-radius:12px;padding:16px 12px;text-align:center;cursor:pointer;transition:all .15s;user-select:none}
+        .prest-stat:hover{border-color:var(--primary);box-shadow:0 4px 16px rgba(15,58,102,.12);transform:translateY(-1px)}
+        .prest-stat.ps-active{border-color:var(--primary);box-shadow:0 0 0 3px rgba(15,58,102,.15)}
+        .prest-stat .ps-num{font-size:30px;font-weight:900;line-height:1}
+        .prest-stat .ps-lbl{font-size:11px;font-weight:700;margin-top:5px;text-transform:uppercase;letter-spacing:.05em;opacity:.7}
+        .prest-card{background:#fff;border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:12px;transition:box-shadow .15s}
+        .prest-card:hover{box-shadow:0 6px 24px rgba(11,42,74,.1)}
+        .prest-card-top{display:flex;align-items:center;gap:14px;padding:16px;background:#fafbfd}
+        .prest-avatar{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#0f3a66,#1a6abf);display:flex;align-items:center;justify-content:center;color:#fff;font-size:19px;font-weight:900;flex-shrink:0;letter-spacing:-1px}
+        .prest-card-info{flex:1;min-width:0}
+        .prest-card-info .pci-name{font-size:15px;font-weight:800;color:#13294b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .prest-card-info .pci-email{font-size:12px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .prest-card-body{padding:12px 16px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+        .ptags{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+        .ptag{display:inline-flex;align-items:center;gap:3px;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;line-height:1}
+        .ptag-blue{background:#dbeafe;color:#1e40af}
+        .ptag-green{background:#dcfce7;color:#15803d}
+        .ptag-yellow{background:#fef9c3;color:#854d0e}
+        .ptag-red{background:#fee2e2;color:#991b1b}
+        .ptag-purple{background:#ede9fe;color:#6d28d9}
+        .ptag-gray{background:#f1f5f9;color:#64748b}
+        .prest-actions{display:flex;gap:7px;flex-wrap:wrap}
+        .pb{border:0;border-radius:8px;padding:8px 14px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+        .pb:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.12)}
+        .pb-approve{background:#0f3a66;color:#fff}
+        .pb-reject{background:#fee2e2;color:#991b1b}
+        .pb-block{background:#fef9c3;color:#854d0e}
+        .pb-author{background:#ede9fe;color:#6d28d9}
+        .pb-revoke{background:#f1f5f9;color:#64748b}
+        .pb-reactivate{background:#dcfce7;color:#15803d}
+        .prest-meta{font-size:11px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
+        .prest-empty{text-align:center;padding:56px 20px;color:var(--muted)}
+        .prest-empty .pei{font-size:52px;margin-bottom:14px;opacity:.5}
+      </style>
+
+      <div style="margin-bottom:20px">
+        <h2 style="font-size:19px;font-weight:900;color:var(--primary);margin:0 0 3px">Gestão de Prestadores</h2>
+        <p style="color:var(--muted);font-size:13px;margin:0">Clique nos cards abaixo para filtrar por status.</p>
+      </div>
+
+      <div class="prest-stats-grid" id="prest-stats"></div>
+      <div id="prest-lista"></div>
+      <div id="prest-vazio" class="prest-empty" style="display:none">
+        <div class="pei">👤</div>
+        <p style="font-size:15px;font-weight:700;color:var(--primary);margin:0 0 6px">Nenhum prestador encontrado</p>
+        <p style="font-size:13px;margin:0">Quando alguém solicitar cadastro, aparece aqui.</p>
+      </div>
+    </div>
+
+  </section>
+</main>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/common.js"></script>
+<script src="assets/js/admin.js"></script>
+<script>
+/* ========= Navegação entre abas ========= */
+(function(){
+  var tabs = document.querySelectorAll('.nav-tabs [role=tab]');
+  tabs.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      tabs.forEach(function(b){
+        b.setAttribute('aria-selected','false');
+        document.getElementById(b.getAttribute('aria-controls')).classList.remove('active');
+      });
+      btn.setAttribute('aria-selected','true');
+      document.getElementById(btn.getAttribute('aria-controls')).classList.add('active');
+    });
+  });
+})();
+
+/* ========= Gerenciador de Banners ========= */
+(function(){
+  // Chaves separadas por aba
+  var KEYS = { servicos: 'omega_banners_servicos', livros: 'omega_banners_livros' };
+  var currentAba = 'servicos';
+  var fileData = null; // {type, src} — já comprimido
+
+  // --- Compressão de imagem via Canvas ---
+  function compressImage(file, cb){
+    var MAX_W = 1200, MAX_H = 700, QUALITY = 0.72;
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function(){
+      var w = img.width, h = img.height;
+      var ratio = Math.min(MAX_W/w, MAX_H/h, 1);
+      var cw = Math.round(w*ratio), ch = Math.round(h*ratio);
+      var canvas = document.createElement('canvas');
+      canvas.width=cw; canvas.height=ch;
+      canvas.getContext('2d').drawImage(img,0,0,cw,ch);
+      URL.revokeObjectURL(url);
+      cb(canvas.toDataURL('image/jpeg', QUALITY));
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); cb(null); };
+    img.src = url;
+  }
+
+  function storageKey(){ return KEYS[currentAba]; }
+  function load(){
+    try{ var s=localStorage.getItem(storageKey()); if(s) return JSON.parse(s); }catch(e){}
+    return null;
+  }
+  function save(arr){
+    try{
+      localStorage.setItem(storageKey(), JSON.stringify(arr));
+    }catch(e){
+      if(e.name==='QuotaExceededError'||String(e).indexOf('quota')>-1||String(e).indexOf('exceeded')>-1){
+        alert('⚠️ Espaço cheio!\n\nRemova banners antigos antes de adicionar novos.\nDica: use imagens JPG menores (máx. 500KB).');
+      } else {
+        alert('Erro ao salvar: '+e.message);
+      }
+    }
+  }
+  function getList(){ return load() || []; }
+
+  // Troca de aba (Serviços / Livros)
+  document.querySelectorAll('.bn-aba-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      currentAba = btn.dataset.aba;
+      document.querySelectorAll('.bn-aba-btn').forEach(function(b){
+        var active = b.dataset.aba === currentAba;
+        b.style.borderBottomColor = active ? 'var(--primary)' : 'transparent';
+        b.style.color = active ? 'var(--primary)' : 'var(--muted)';
+        b.style.fontWeight = active ? '700' : '600';
+      });
+      var label = currentAba === 'servicos' ? 'Serviços' : 'Livros';
+      document.getElementById('bn-aba-label').innerHTML = 'Gerenciando banners da aba <strong>'+label+'</strong>';
+      // Reset form/preview
+      document.getElementById('bn-file').value='';
+      document.getElementById('bn-preview-wrap').style.display='none';
+      fileData=null;
+      render();
+    });
+  });
+
+  function render(){
+    var arr = getList();
+    var el = document.getElementById('bn-list');
+    document.getElementById('bn-count').textContent = '('+arr.length+')';
+    if(!arr.length){ el.innerHTML='<p style="color:var(--muted);padding:16px 0;text-align:center">Nenhum banner adicionado. Os banners padrão do site estão sendo exibidos.</p>'; return; }
+    el.innerHTML='';
+    arr.forEach(function(b,i){
+      var card = document.createElement('div');
+      card.className='bn-card';
+      card.setAttribute('draggable','true');
+      card.dataset.i = i;
+      var thumb;
+      if(b.type==='video'){
+        thumb = '<div class="bn-thumb-vid">▶</div>';
+      } else {
+        thumb = '<img class="bn-thumb" src="'+b.src+'" alt="">';
+      }
+      card.innerHTML = thumb +
+        '<div class="bn-info"><strong>'+(b.title||b.headline||'Banner '+(i+1))+'</strong><span>'+(b.type==='video'?'📹 Vídeo':'🖼 Imagem')+(b.ctaText?' · CTA: '+b.ctaText:'')+'</span></div>'+
+        '<div class="bn-btns">'+
+          '<button data-action="up" data-i="'+i+'" title="Mover para cima">↑</button>'+
+          '<button data-action="down" data-i="'+i+'" title="Mover para baixo">↓</button>'+
+          '<button data-action="del" data-i="'+i+'" class="del-btn" title="Remover">✕</button>'+
+        '</div>';
+      el.appendChild(card);
+    });
+
+    // Botões
+    el.querySelectorAll('[data-action]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var action = btn.dataset.action;
+        var idx = parseInt(btn.dataset.i);
+        var arr2 = getList();
+        if(action==='del'){ if(!confirm('Remover banner?')) return; arr2.splice(idx,1); }
+        else if(action==='up' && idx>0){ var t=arr2[idx]; arr2[idx]=arr2[idx-1]; arr2[idx-1]=t; }
+        else if(action==='down' && idx<arr2.length-1){ var t2=arr2[idx]; arr2[idx]=arr2[idx+1]; arr2[idx+1]=t2; }
+        save(arr2); render();
+      });
+    });
+
+    // Drag-and-drop reorder
+    var dragIdx=null;
+    el.querySelectorAll('.bn-card').forEach(function(card){
+      card.addEventListener('dragstart',function(){ dragIdx=parseInt(card.dataset.i); card.style.opacity='.5'; });
+      card.addEventListener('dragend',function(){ card.style.opacity=''; });
+      card.addEventListener('dragover',function(e){ e.preventDefault(); card.style.background='#f0f4ff'; });
+      card.addEventListener('dragleave',function(){ card.style.background=''; });
+      card.addEventListener('drop',function(e){
+        e.preventDefault(); card.style.background='';
+        var toIdx=parseInt(card.dataset.i);
+        if(dragIdx===null||dragIdx===toIdx) return;
+        var arr3=getList();
+        var item=arr3.splice(dragIdx,1)[0];
+        arr3.splice(toIdx,0,item);
+        save(arr3); render();
+      });
+    });
+  }
+
+  // Preview ao selecionar arquivo
+  document.getElementById('bn-file').addEventListener('change', function(){
+    var file = this.files[0];
+    if(!file){ fileData=null; return; }
+    var previewWrap = document.getElementById('bn-preview-wrap');
+    var previewImg = document.getElementById('bn-preview-img');
+    var previewVid = document.getElementById('bn-preview-vid');
+    previewWrap.style.display='block';
+    var isVideo = file.type.startsWith('video/');
+    if(isVideo){
+      var reader = new FileReader();
+      reader.onload = function(e){
+        var src = e.target.result;
+        fileData = { type:'video', src:src };
+        previewImg.style.display='none';
+        previewVid.style.display='block';
+        previewVid.src=src;
+      };
+      reader.readAsDataURL(file);
+    } else {
+      // Comprimir imagem via Canvas antes de salvar
+      compressImage(file, function(compressed){
+        if(!compressed){ alert('Erro ao processar imagem.'); return; }
+        fileData = { type:'image', src:compressed };
+        previewVid.style.display='none';
+        previewImg.style.display='block';
+        previewImg.src=compressed;
+      });
+    }
+  });
+
+  document.getElementById('bn-add').addEventListener('click', function(){
+    if(!fileData){ alert('Selecione uma imagem ou vídeo primeiro.'); return; }
+    var title    = document.getElementById('bn-title').value.trim();
+    var eyebrow  = document.getElementById('bn-eyebrow').value.trim();
+    var headline = document.getElementById('bn-headline').value.trim();
+    var sub      = document.getElementById('bn-sub').value.trim();
+    var ctaText  = document.getElementById('bn-cta-text').value.trim();
+    var ctaLink  = document.getElementById('bn-cta-link').value.trim();
+    var arr = getList();
+    arr.push({ type:fileData.type, src:fileData.src, title:title, eyebrow:eyebrow, headline:headline, sub:sub, ctaText:ctaText, ctaLink:ctaLink });
+    save(arr);
+    // Reset form
+    ['bn-title','bn-eyebrow','bn-headline','bn-sub','bn-cta-text','bn-cta-link'].forEach(function(id){ document.getElementById(id).value=''; });
+    document.getElementById('bn-file').value='';
+    document.getElementById('bn-preview-wrap').style.display='none';
+    document.getElementById('bn-preview-img').src='';
+    document.getElementById('bn-preview-vid').src='';
+    fileData=null;
+    document.getElementById('bn-msg').textContent='✓ Banner adicionado!';
+    setTimeout(function(){ document.getElementById('bn-msg').textContent=''; },3000);
+    render();
+  });
+
+  document.getElementById('bn-reset').addEventListener('click', function(){
+    if(!confirm('Remover todos os banners e restaurar os padrão do site?')) return;
+    try{ localStorage.removeItem(storageKey()); }catch(e){}
+    render();
+  });
+
+  render();
+})();
+
+/* ========= Aba: Cartas aos Autores ========= */
+(function(){
+  function loadCartas(){
+    try{var s=localStorage.getItem('omega_cartas_autores');if(s)return JSON.parse(s);}catch(e){}
+    return [];
+  }
+  function saveCartas(arr){try{localStorage.setItem('omega_cartas_autores',JSON.stringify(arr));}catch(e){}}
+
+  function renderCartas(){
+    var arr=loadCartas();
+    var lista=document.getElementById('cartas-lista');
+    var vazio=document.getElementById('cartas-vazio');
+    if(!arr.length){lista.innerHTML='';vazio.style.display='block';return;}
+    vazio.style.display='none';
+    lista.innerHTML='';
+    arr.forEach(function(c,i){
+      var div=document.createElement('div');
+      div.style.cssText='background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px;box-shadow:var(--shadow)';
+      var noLida=!c.lida?' style="display:inline-block;background:#0f3a66;color:#fff;border-radius:4px;font-size:11px;padding:2px 7px;margin-left:6px;font-weight:700">NOVA</span>':'>';
+      div.innerHTML=
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">'+
+          '<div>'+
+            '<strong style="font-size:14px">'+esc(c.nome)+'</strong>'+
+            '<span'+noLida+
+            '<span style="font-size:12px;color:var(--muted);display:block;margin-top:2px">Para: '+esc(c.autor)+' · 📖 '+esc(c.livro)+'</span>'+
+            '<span style="font-size:11px;color:var(--muted)">'+esc(c.data)+'</span>'+
+          '</div>'+
+          '<div style="display:flex;gap:6px">'+
+            '<button data-print="'+i+'" style="border:0;background:var(--primary);color:#fff;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer">🖨️ Imprimir carta</button>'+
+            '<button data-del="'+i+'" style="border:0;background:none;color:var(--danger);border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer">✕</button>'+
+          '</div>'+
+        '</div>'+
+        '<p style="font-size:13px;color:var(--foreground);margin:10px 0 0;line-height:1.6;border-left:3px solid var(--border);padding-left:10px">'+esc(c.texto)+'</p>';
+      lista.appendChild(div);
+    });
+
+    lista.querySelectorAll('[data-print]').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        var idx=parseInt(btn.dataset.print);
+        var c=loadCartas()[idx];
+        // Marcar como lida
+        var arr2=loadCartas();arr2[idx].lida=true;saveCartas(arr2);renderCartas();
+        // Imprimir
+        var w=window.open('','_blank','width=640,height=800');
+        w.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Carta ao Autor</title>'+
+          '<style>@page{size:A4;margin:20mm}body{font-family:Georgia,serif;color:#13294b;max-width:580px;margin:0 auto}'+
+          '.cabecalho{border-bottom:2px solid #d4a017;padding-bottom:12px;margin-bottom:24px}'+
+          'h1{font-size:14px;font-weight:700;margin:0;color:#0f3a66}'+
+          '.data{font-size:12px;color:#6b7a90;margin:4px 0 0}'+
+          '.destino{margin:0 0 20px;font-size:14px}'+
+          '.corpo{font-size:15px;line-height:1.9;white-space:pre-wrap;margin:0 0 32px}'+
+          '.assinatura{font-style:italic;color:#6b7a90;font-size:14px}'+
+          '.rodape{margin-top:40px;font-size:11px;color:#aaa;border-top:1px dashed #ddd;padding-top:10px;text-align:center}'+
+          '</style></head><body>'+
+          '<div class="cabecalho"><h1>Soluções Omega · Livros &amp; Cultura</h1><p class="data">Recebida em: '+esc(c.data)+'</p></div>'+
+          '<p class="destino">Para: <strong>'+esc(c.autor)+'</strong><br>Sobre o livro: <em>'+esc(c.livro)+'</em></p>'+
+          '<p class="corpo">'+esc(c.texto)+'</p>'+
+          '<p class="assinatura">— '+esc(c.nome)+'</p>'+
+          '<div class="rodape">Carta enviada pelo leitor via hubsolucoesomega.com</div>'+
+          '</body></html>');
+        w.document.close();w.print();
+      });
+    });
+    lista.querySelectorAll('[data-del]').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        if(!confirm('Excluir esta carta?'))return;
+        var arr2=loadCartas();arr2.splice(parseInt(btn.dataset.del),1);saveCartas(arr2);renderCartas();
+      });
+    });
+  }
+  function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+  // Renderizar quando aba for ativada
+  document.getElementById('btn-tab-cartas').addEventListener('click',renderCartas);
+  renderCartas();
+})();
+
+// ===== GESTÃO DE PRESTADORES =====
+(function(){
+  var STORE = 'omega_prestadores';
+  var _filtro = 'todos';
+
+  function getAll(){ try{var s=localStorage.getItem(STORE);return s?JSON.parse(s):[];}catch(e){return[];} }
+  function saveAll(arr){ localStorage.setItem(STORE,JSON.stringify(arr)); }
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function initials(n){ var p=String(n||'?').trim().split(' ');return (p[0][0]+(p[1]?p[1][0]:'')).toUpperCase(); }
+
+  var STAT_CFG = [
+    {key:'todos',   label:'Total',    num:function(a){return a.length;},            color:'#0f3a66', bg:'#dbeafe'},
+    {key:'pendente',label:'Pendentes',num:function(a){return a.filter(function(u){return u.status==='pendente';}).length;}, color:'#854d0e', bg:'#fef9c3'},
+    {key:'ativo',   label:'Ativos',   num:function(a){return a.filter(function(u){return u.status==='ativo';}).length;},   color:'#15803d', bg:'#dcfce7'},
+    {key:'bloqueado',label:'Bloqueados',num:function(a){return a.filter(function(u){return u.status==='bloqueado';}).length;},color:'#991b1b',bg:'#fee2e2'}
+  ];
+
+  function renderStats(all){
+    document.getElementById('prest-stats').innerHTML = STAT_CFG.map(function(s){
+      var n = s.num(all);
+      var active = _filtro===s.key ? ' ps-active' : '';
+      return '<div class="prest-stat'+active+'" style="border-color:'+(active?s.color:'var(--border)')+';background:'+s.bg+'" onclick="filtrarPrest(\''+s.key+'\')">'
+           + '<div class="ps-num" style="color:'+s.color+'">'+n+'</div>'
+           + '<div class="ps-lbl" style="color:'+s.color+'">'+s.label+'</div>'
+           + '</div>';
+    }).join('');
+  }
+
+  function filtrarPrest(f){
+    _filtro = f;
+    renderPrest();
+  }
+  window.filtrarPrest = filtrarPrest;
+
+  function renderPrest(){
+    var all = getAll();
+    var lista = _filtro==='todos' ? all : all.filter(function(u){ return u.status===_filtro; });
+    var el = document.getElementById('prest-lista');
+    var vazio = document.getElementById('prest-vazio');
+
+    renderStats(all);
+
+    if(!lista.length){ el.innerHTML=''; vazio.style.display='block'; return; }
+    vazio.style.display = 'none';
+
+    var tipoLabel = {prestador:'🔧 Prestador', autor:'📚 Autor', ambos:'🔧+📚 Ambos'};
+    var statusTag = {
+      pendente:'<span class="ptag ptag-yellow">⏳ Pendente</span>',
+      ativo:   '<span class="ptag ptag-green">✅ Ativo</span>',
+      bloqueado:'<span class="ptag ptag-red">🚫 Bloqueado</span>'
+    };
+
+    el.innerHTML = lista.map(function(u){
+      var status = u.status || 'pendente';
+      var tipo = tipoLabel[u.tipo] || u.tipo;
+      var data = new Date(u.createdAt||Date.now()).toLocaleDateString('pt-BR');
+
+      var actionBtns = '';
+      if(status==='pendente'){
+        actionBtns += '<button class="pb pb-approve" onclick="aprovarPrestador(\''+u.id+'\')">✅ Aprovar</button>';
+        actionBtns += '<button class="pb pb-reject"  onclick="recusarPrestador(\''+u.id+'\')">❌ Recusar</button>';
+      } else if(status==='ativo'){
+        actionBtns += '<button class="pb pb-block"   onclick="bloquearPrestador(\''+u.id+'\')">🚫 Bloquear</button>';
+      } else {
+        actionBtns += '<button class="pb pb-reactivate" onclick="aprovarPrestador(\''+u.id+'\')">✅ Reativar</button>';
+      }
+      if(u.tipo==='autor'||u.tipo==='ambos'){
+        if(!u.autorAprovado)
+        actionBtns += '<button class="pb pb-author" onclick="aprovarAutor(\''+u.id+'\')">📚 Aprovar autor</button>';
+        else
+        actionBtns += '<button class="pb pb-revoke" onclick="revogarAutor(\''+u.id+'\')">📚 Revogar autor</button>';
+      }
+
+      return '<div class="prest-card">'
+        + '<div class="prest-card-top">'
+          + '<div class="prest-avatar">'+initials(u.nome)+'</div>'
+          + '<div class="prest-card-info">'
+            + '<div class="pci-name">'+esc(u.nome)+'</div>'
+            + '<div class="pci-email">'+esc(u.email)+'</div>'
+          + '</div>'
+          + (statusTag[status]||'')
+        + '</div>'
+        + '<div class="prest-card-body">'
+          + '<div>'
+            + '<div class="ptags" style="margin-bottom:6px">'
+              + '<span class="ptag ptag-blue">'+tipo+'</span>'
+              + (u.whats?'<span class="ptag ptag-gray">📱 '+esc(u.whats)+'</span>':'')
+              + (u.autorAprovado?'<span class="ptag ptag-purple">📚 Autor aprovado</span>':'')
+            + '</div>'
+            + '<div class="prest-meta">'
+              + '<span>📅 '+data+'</span>'
+              + '<span>🔧 '+((u.servicos||[]).length)+' serviço(s)</span>'
+              + '<span>📖 '+((u.livros||[]).length)+' livro(s)</span>'
+              + (u.desc?'<span style="font-style:italic;max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(u.desc).substring(0,80)+'</span>':'')
+            + '</div>'
+          + '</div>'
+          + '<div class="prest-actions">'+actionBtns+'</div>'
+        + '</div>'
+      + '</div>';
+    }).join('');
+  }
+
+  function aprovarPrestador(id){
+    var all=getAll(); var u=all.find(function(x){return x.id===id;}); if(!u)return;
+    u.status='ativo'; saveAll(all); renderPrest(); showToastAdm('✅ '+u.nome+' aprovado!');
+  }
+  function recusarPrestador(id){
+    if(!confirm('Recusar e remover este cadastro?'))return;
+    saveAll(getAll().filter(function(x){return x.id!==id;})); renderPrest(); showToastAdm('Cadastro removido.');
+  }
+  function bloquearPrestador(id){
+    var all=getAll(); var u=all.find(function(x){return x.id===id;}); if(!u)return;
+    u.status='bloqueado'; saveAll(all); renderPrest(); showToastAdm('🚫 '+u.nome+' bloqueado.');
+  }
+  function aprovarAutor(id){
+    var all=getAll(); var u=all.find(function(x){return x.id===id;}); if(!u)return;
+    u.autorAprovado=true; saveAll(all); renderPrest(); showToastAdm('📚 '+u.nome+' aprovado como autor!');
+  }
+  function revogarAutor(id){
+    var all=getAll(); var u=all.find(function(x){return x.id===id;}); if(!u)return;
+    u.autorAprovado=false; saveAll(all); renderPrest(); showToastAdm('Permissão de autor revogada.');
+  }
+  function showToastAdm(msg){
+    var t=document.createElement('div');
+    t.textContent=msg;
+    t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(0);background:#0b2a4a;color:#fff;border-radius:10px;padding:12px 22px;font-size:13px;font-weight:700;z-index:9999;box-shadow:0 6px 24px rgba(0,0,0,.2);white-space:nowrap';
+    document.body.appendChild(t);
+    setTimeout(function(){t.style.transition='opacity .3s';t.style.opacity='0';setTimeout(function(){t.remove();},300);},2600);
+  }
+  window.aprovarPrestador=aprovarPrestador;
+  window.recusarPrestador=recusarPrestador;
+  window.bloquearPrestador=bloquearPrestador;
+  window.aprovarAutor=aprovarAutor;
+  window.revogarAutor=revogarAutor;
+
+  document.getElementById('btn-tab-prestadores').addEventListener('click', renderPrest);
+  renderPrest();
+})();
+</script>
+</body>
+</html>
