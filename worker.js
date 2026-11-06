@@ -9,7 +9,7 @@ const MAX_BODY = 45 * 1024 * 1024;   // tamanho máximo de uma requisição
 const MAX_MIDIA = 15 * 1024 * 1024;  // tamanho máximo de um arquivo (imagem, vídeo ou PDF)
 const PARTE = 1800 * 1024;           // D1 aceita até 2 MB por valor; arquivos maiores são divididos
 const SESSAO_DIAS = 30;
-const CONFIG_OK = ['banners_servicos', 'banners_livros'];
+const CONFIG_OK = ['banners_servicos', 'banners_livros', 'ocultos', 'catalogo'];
 
 let schemaPronto = false;
 const SCHEMA = [
@@ -85,7 +85,11 @@ async function rotear(req, env, url) {
 async function publicoTudo(env) {
   const rs = await env.DB.prepare("SELECT dados FROM contas WHERE status = 'ativo'").all();
   const contas = rs.results.map((x) => vitrine(JSON.parse(x.dados)));
-  return json({ contas, banners: await banners(env) }, 200, { 'Cache-Control': 'no-store' });
+  return json({ contas, banners: await banners(env), ocultos: await ocultos(env), catalogo: await catalogoSalvo(env) }, 200, { 'Cache-Control': 'no-store' });
+}
+async function ocultos(env) {
+  const r = await env.DB.prepare("SELECT dados FROM config WHERE chave = 'ocultos'").first();
+  return r ? JSON.parse(r.dados) : [];
 }
 async function banners(env) {
   const rs = await env.DB.prepare("SELECT chave, dados FROM config WHERE chave IN ('banners_servicos','banners_livros')").all();
@@ -256,7 +260,7 @@ async function adminTudo(env) {
     env.DB.prepare('SELECT dados FROM cartas ORDER BY criado')
   ]);
   const pa = (r) => r.results.map((x) => JSON.parse(x.dados));
-  return json({ contas: pa(c).map(privado), pedidos: pa(p), cartas: pa(ca), banners: await banners(env) });
+  return json({ contas: pa(c).map(privado), pedidos: pa(p), cartas: pa(ca), banners: await banners(env), ocultos: await ocultos(env), catalogo: await catalogoSalvo(env) });
 }
 async function adminSalvarConta(req, env, id) {
   const b = await corpo(req), d = b.conta || {};
@@ -278,9 +282,28 @@ async function adminExcluirConta(env, id) {
   await env.DB.batch(stmts);
   return json({ ok: true });
 }
+async function catalogoSalvo(env) {
+  const r = await env.DB.prepare("SELECT dados FROM config WHERE chave = 'catalogo'").first();
+  return r ? JSON.parse(r.dados) : null;
+}
+async function salvarCatalogo(req, env) {
+  const b = await corpo(req), t = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
+  let lim = null;
+  if (b.dados) {
+    const o = b.dados;
+    lim = {
+      servicos: (Array.isArray(o.servicos) ? o.servicos : []).slice(0, 80).map((c) => ({ title: t(c.title, 120), items: (Array.isArray(c.items) ? c.items : []).slice(0, 300).map((s) => ({ name: t(s.name, 160), description: t(s.description, 400), price: t(s.price, 80), icon: t(s.icon, 40) || 'briefcase' })).filter((s) => s.name) })).filter((c) => c.title),
+      generos: (Array.isArray(o.generos) ? o.generos : []).slice(0, 80).map((g) => ({ key: t(g.key, 60), label: t(g.label, 120) })).filter((g) => g.key && g.label)
+    };
+  }
+  if (lim) await env.DB.prepare('INSERT INTO config (chave, dados, atualizado) VALUES (?, ?, ?) ON CONFLICT(chave) DO UPDATE SET dados = excluded.dados, atualizado = excluded.atualizado').bind('catalogo', JSON.stringify(lim), agora()).run();
+  else await env.DB.prepare("DELETE FROM config WHERE chave = 'catalogo'").run();
+  return json({ dados: lim });
+}
 async function salvarConfig(req, env, chave) {
   if (!CONFIG_OK.includes(chave)) throw new Falha('Configuração desconhecida.', 404);
-  const b = await corpo(req), dados = Array.isArray(b.dados) ? b.dados : [];
+  if (chave === 'catalogo') return salvarCatalogo(req, env);
+  const b = await corpo(req), dados = Array.isArray(b.dados) ? b.dados.filter((x) => typeof x === 'string' && x.length < 200).slice(0, 500) : [];
   const dono = 'config:' + chave, stmts = [];
   extrairMidias(env.DB, dados, dono, stmts);
   stmts.push(env.DB.prepare('INSERT INTO config (chave, dados, atualizado) VALUES (?, ?, ?) ON CONFLICT(chave) DO UPDATE SET dados = excluded.dados, atualizado = excluded.atualizado').bind(chave, JSON.stringify(dados), agora()));
