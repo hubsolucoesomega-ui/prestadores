@@ -1,4 +1,4 @@
-// OmegaHub — Worker "prestadores"
+// Soluções Omega — Worker "prestadores"
 // Serve o site (arquivos estáticos) e a API /api/* com banco central Cloudflare D1.
 // Sem o banco ligado (binding DB), a API responde 503 e o site continua no modo navegador.
 //
@@ -303,7 +303,9 @@ async function salvarCatalogo(req, env) {
 async function salvarConfig(req, env, chave) {
   if (!CONFIG_OK.includes(chave)) throw new Falha('Configuração desconhecida.', 404);
   if (chave === 'catalogo') return salvarCatalogo(req, env);
-  const b = await corpo(req), dados = Array.isArray(b.dados) ? b.dados.filter((x) => typeof x === 'string' && x.length < 200).slice(0, 500) : [];
+  const b = await corpo(req), bruto = Array.isArray(b.dados) ? b.dados : [];
+  // Banners são objetos (imagem + textos). "ocultos" é uma lista de textos curtos.
+  const dados = chave.startsWith('banners_') ? limparBanners(bruto) : bruto.filter((x) => typeof x === 'string' && x.length < 200).slice(0, 500);
   const dono = 'config:' + chave, stmts = [];
   extrairMidias(env.DB, dados, dono, stmts);
   stmts.push(env.DB.prepare('INSERT INTO config (chave, dados, atualizado) VALUES (?, ?, ?) ON CONFLICT(chave) DO UPDATE SET dados = excluded.dados, atualizado = excluded.atualizado').bind(chave, JSON.stringify(dados), agora()));
@@ -340,9 +342,13 @@ async function importar(req, env) {
     const lista = b.banners && Array.isArray(b.banners[k]) ? b.banners[k] : null;
     if (!lista || !lista.length) continue;
     const chave = 'banners_' + k;
-    if (await env.DB.prepare('SELECT 1 FROM config WHERE chave = ?').bind(chave).first()) continue;
-    const stmts = []; extrairMidias(env.DB, lista, 'config:' + chave, stmts);
-    stmts.push(env.DB.prepare('INSERT INTO config (chave, dados, atualizado) VALUES (?, ?, ?)').bind(chave, JSON.stringify(lista), agora()));
+    // Só não sobrescreve se já existir banner de verdade; uma lista vazia pode ser substituída.
+    const atual = await env.DB.prepare('SELECT dados FROM config WHERE chave = ?').bind(chave).first();
+    if (atual) { let a = []; try { a = JSON.parse(atual.dados); } catch (e) {} if (Array.isArray(a) && a.length) continue; }
+    const limpa = limparBanners(lista);
+    if (!limpa.length) continue;
+    const stmts = []; extrairMidias(env.DB, limpa, 'config:' + chave, stmts);
+    stmts.push(env.DB.prepare('INSERT INTO config (chave, dados, atualizado) VALUES (?, ?, ?) ON CONFLICT(chave) DO UPDATE SET dados = excluded.dados, atualizado = excluded.atualizado').bind(chave, JSON.stringify(limpa), agora()));
     await env.DB.batch(stmts); res.banners++;
   }
   return json(res);
@@ -350,6 +356,26 @@ async function importar(req, env) {
 
 // ---------------------------------------------------------------- arquivos (imagens, vídeos, PDFs)
 // Troca cada "data:...;base64,..." grande por um endereço /api/midia/<id> e grava o arquivo no banco.
+// Mantém só os campos que um banner pode ter, com tamanho limitado.
+// O campo src não é cortado: pode ser um data: URI grande, que extrairMidias grava no banco.
+function limparBanners(lista) {
+  const txt = (v, n) => (typeof v === 'string' ? v : '').trim().slice(0, n);
+  return lista
+    .filter((x) => x && typeof x === 'object' && typeof x.src === 'string' && x.src.length > 0)
+    .slice(0, 20)
+    .map((x) => ({
+      type: ['image', 'video', 'pdf'].includes(x.type) ? x.type : 'image',
+      src: x.src,
+      name: txt(x.name, 160),
+      title: txt(x.title, 120),
+      eyebrow: txt(x.eyebrow, 80),
+      headline: txt(x.headline, 160),
+      sub: txt(x.sub, 300),
+      ctaText: txt(x.ctaText, 60),
+      ctaLink: txt(x.ctaLink, 400)
+    }));
+}
+
 function extrairMidias(db, obj, dono, stmts) {
   const visitar = (o) => {
     if (!o || typeof o !== 'object') return;
