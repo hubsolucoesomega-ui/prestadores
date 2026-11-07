@@ -240,6 +240,16 @@ footer{background:var(--primary);color:rgba(255,255,255,.75);padding:48px 0 24px
 .descubra-outro{margin-top:12px;border:0;background:none;color:var(--primary);font-weight:700;text-decoration:underline;cursor:pointer}
 </style>
 <style>@media (max-width: 640px) { .lb-media { height: 50vw !important; min-height: 180px; object-fit: cover; object-position: left center; } }</style>
+<style id="mobile-v27">
+@media (max-width: 640px) {
+  .lb { padding: 0 !important; }
+  .lb-track, .lb-slide { padding: 0 !important; margin: 0 !important; }
+  .lb-slide:not(.no-text) .lb-media { height: auto !important; aspect-ratio: 2.4 / 1; min-height: 0 !important; }
+  .lb-dots { position: static !important; padding: 8px 0 10px !important; text-align: center; }
+  .lb-inner { padding-top: 16px !important; padding-bottom: 24px !important; }
+  section:not(.lb):not(.hero) { padding-top: 26px !important; padding-bottom: 26px !important; }
+}
+</style>
 </head>
 <body>
 
