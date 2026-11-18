@@ -414,7 +414,23 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
               <div class="field span-2"><label for="lv-sinopse">Sinopse <span class="req">*</span></label><textarea id="lv-sinopse" placeholder="Resumo do livro"></textarea></div>
               <div class="field"><label for="lv-preco">Preço de venda (R$) <span class="req">*</span></label><input id="lv-preco" type="number" min="0" step="0.01" placeholder="0,00"></div>
               <div class="field"><label for="lv-preco-ant">Preço anterior (opcional)</label><input id="lv-preco-ant" type="number" min="0" step="0.01" placeholder="Para mostrar desconto"></div>
-              <div class="field"><label for="lv-formato">Formato</label><select id="lv-formato"><option value="fisico">Físico (impresso)</option><option value="ebook">E-book (digital)</option><option value="ambos">Físico + E-book</option></select></div>
+              <div class="field span-2"><label>Formatos &agrave; venda &mdash; marque os que voc&ecirc; vende e ponha o pre&ccedil;o de cada um</label>
+                <div style="display:grid;gap:8px;margin-top:4px">
+                  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                    <label style="display:flex;align-items:center;gap:7px;min-width:150px;font-size:14px"><input type="checkbox" id="fm-fisico"> Livro impresso</label>
+                    <input id="fm-fisico-preco" type="number" min="0" step="0.01" placeholder="R$ 0,00" style="width:130px">
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                    <label style="display:flex;align-items:center;gap:7px;min-width:150px;font-size:14px"><input type="checkbox" id="fm-ebook"> E-book (ler no site)</label>
+                    <input id="fm-ebook-preco" type="number" min="0" step="0.01" placeholder="R$ 0,00" style="width:130px">
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                    <label style="display:flex;align-items:center;gap:7px;min-width:150px;font-size:14px"><input type="checkbox" id="fm-audio"> Audiolivro</label>
+                    <input id="fm-audio-preco" type="number" min="0" step="0.01" placeholder="R$ 0,00" style="width:130px">
+                  </div>
+                </div>
+                <input type="hidden" id="lv-formato" value="fisico">
+              </div>
               <div class="field"><label for="lv-estoque">Estoque</label><input id="lv-estoque" type="number" min="0" value="1"></div>
               <div class="field"><label for="lv-paginas">Páginas</label><input id="lv-paginas" type="number" min="0" placeholder="Ex.: 220"></div>
               <div class="field"><label for="lv-isbn">ISBN (opcional)</label><input id="lv-isbn" placeholder="000-00-0000-000-0"></div>
@@ -429,6 +445,15 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
               <div class="field"><label>Amostra ou e-book (PDF)</label>
                 <label class="drop"><input type="file" id="lv-pdf" accept="application/pdf"><svg><use href="#i-upload"/></svg><div class="t">Enviar PDF</div><div class="s">Até 2 MB. Use para o 1º capítulo.</div></label>
                 <div class="media-grid" id="lv-pdf-prev"></div>
+              </div>
+              <div class="field span-2"><label>Faixas do audiolivro (MP3 ou M4A)</label>
+                <label class="drop"><input type="file" id="lv-audio" accept="audio/*" multiple><svg><use href="#i-upload"/></svg><div class="t">Enviar faixas</div><div class="s">Uma faixa por cap&iacute;tulo. At&eacute; 600 MB cada.</div></label>
+                <div id="lv-audio-lista" style="margin-top:8px"></div>
+              </div>
+              <div class="field span-2"><label>Livro digital (EPUB) &mdash; para ler dentro do site</label>
+                <label class="drop"><input type="file" id="lv-epub" accept=".epub,application/epub+zip"><svg><use href="#i-upload"/></svg><div class="t">Enviar EPUB</div><div class="s">At&eacute; 15 MB. O site cria sozinho a amostra gr&aacute;tis dos primeiros cap&iacute;tulos.</div></label>
+                <div class="media-grid" id="lv-epub-prev"></div>
+                <div id="lv-epub-aviso" style="font-size:12.5px;color:var(--muted);margin-top:6px"></div>
               </div>
               <div class="field span-2"><label>Vídeo de apresentação (opcional)</label><div id="lv-midias"></div></div>
             </div>
@@ -544,6 +569,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<script src="assets/js/jszip.min.js"></script>
 <script>
 /*  (embutido) */
 // OmegaStore — camada única de dados do site (contas, serviços, livros, mídias).
@@ -1042,6 +1068,7 @@ var SERVICOS_PADRAO = [{"title": "Terapia e Bem-Estar", "items": [{"name": "Psic
 
   return {
     api: API, trocarSenha: trocarSenha, enviarPedido: enviarPedido, enviarCarta: enviarCarta, validarVale: validarVale,
+    call: call, token: function () { var s = sess(); return (s && s.token) || ''; },
     ocultos: ocultos, oculto: oculto, salvarOcultos: salvarOcultos, EXEMPLOS: EXEMPLOS,
     importarNavegador: importarNavegador, sairAdmin: sairAdmin,
     get CATEGORIAS() { return listaCategorias(); }, get GENEROS() { return catalogo().generos; }, catalogo: catalogo, salvarCatalogo: salvarCatalogo, SERVICOS_PADRAO: SERVICOS_PADRAO, LIMITS: LIMITS,
@@ -1298,6 +1325,219 @@ var SERVICOS_PADRAO = [{"title": "Terapia e Bem-Estar", "items": [{"name": "Psic
   var lvMidias = mediaBox($('lv-midias'), { label: 'Enviar vídeo curto (MP4)', accept: 'video/mp4,video/webm', only: ['video'], max: 2 });
   var lvCapa = null, lvPdf = null, lvEdit = null;
   function showCapa() { $('lv-capa-prev').innerHTML = lvCapa ? '<div class="media-item" style="aspect-ratio:3/4;max-width:130px"><img src="' + lvCapa + '" alt=""><span class="tag">Capa</span></div>' : ''; }
+
+
+  // ---------- faixas do audiolivro (vão para o R2, não para o banco) ----------
+  var lvAudio = [];
+
+  function mostrarAudio() {
+    var alvo = $('lv-audio-lista'); if (!alvo) return;
+    if (!lvAudio.length) { alvo.innerHTML = '<div style="font-size:12.5px;color:var(--muted)">Nenhuma faixa enviada ainda.</div>'; return; }
+    alvo.innerHTML = lvAudio.map(function (f, i) {
+      return '<div class="media-item" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line-2);border-radius:10px;margin-bottom:6px">' +
+        '<b>🎧</b><input data-faixa-titulo="' + i + '" value="' + esc(f.titulo) + '" style="flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:14px">' +
+        '<span style="font-size:12px;color:var(--muted)">' + (f.enviando ? f.enviando : (Math.round((f.tamanho || 0) / 104857.6) / 10) + ' MB') + '</span>' +
+        '<button class="rm" type="button" data-faixa-rm="' + i + '">×</button></div>';
+    }).join('');
+  }
+
+  if ($('lv-audio-lista')) $('lv-audio-lista').addEventListener('input', function (e) {
+    var t = e.target.closest('[data-faixa-titulo]'); if (!t) return;
+    lvAudio[+t.dataset.faixaTitulo].titulo = t.value;
+  });
+  if ($('lv-audio-lista')) $('lv-audio-lista').addEventListener('click', function (e) {
+    var r = e.target.closest('[data-faixa-rm]'); if (!r) return;
+    var i = +r.dataset.faixaRm;
+    if (!confirm('Tirar a faixa "' + lvAudio[i].titulo + '" deste livro?')) return;
+    lvAudio.splice(i, 1); mostrarAudio();
+  });
+
+  // Envia uma faixa direto para o servidor, em binário (aguenta arquivos grandes).
+  function enviarFaixa(f, aoAndar) {
+    return Promise.resolve(S.call('POST', '/api/arquivo/novo', { nome: f.name, mime: f.type || 'audio/mpeg', protegido: true }, S.token()))
+      .then(function (novo) {
+        return new Promise(function (ok, erro) {
+          var x = new XMLHttpRequest();
+          x.open('PUT', novo.endereco);
+          var tk = S.token && S.token();
+          if (tk) x.setRequestHeader('Authorization', 'Bearer ' + tk);
+          x.setRequestHeader('Content-Type', f.type || 'audio/mpeg');
+          x.upload.onprogress = function (ev) { if (ev.lengthComputable && aoAndar) aoAndar(Math.round(ev.loaded / ev.total * 100)); };
+          x.onload = function () {
+            if (x.status >= 200 && x.status < 300) ok({ id: novo.id, arquivo: novo.endereco, tamanho: f.size });
+            else { try { erro(new Error(JSON.parse(x.responseText).erro)); } catch (e2) { erro(new Error('Não consegui enviar a faixa.')); } }
+          };
+          x.onerror = function () { erro(new Error('A conexão caiu durante o envio.')); };
+          x.send(f);
+        });
+      });
+  }
+
+  if ($('lv-audio')) $('lv-audio').onchange = function () {
+    var fs2 = Array.prototype.slice.call(this.files); this.value = '';
+    if (!fs2.length) return;
+    fs2.forEach(function (f) {
+      var reg = { titulo: f.name.replace(/\.[^.]+$/, ''), arquivo: '', id: '', tamanho: f.size, enviando: 'enviando 0%' };
+      lvAudio.push(reg); mostrarAudio();
+      enviarFaixa(f, function (pct) { reg.enviando = 'enviando ' + pct + '%'; mostrarAudio(); })
+        .then(function (r) { reg.id = r.id; reg.arquivo = r.arquivo; reg.enviando = null; mostrarAudio(); toast('Faixa enviada.'); })
+        .catch(function (e) {
+          var i = lvAudio.indexOf(reg); if (i >= 0) lvAudio.splice(i, 1);
+          mostrarAudio(); toast(e.message || 'Não consegui enviar a faixa.', true);
+        });
+    });
+  };
+
+  function formatosDoForm() {
+    var n = function (id) { var v = parseFloat($(id).value); return isFinite(v) && v > 0 ? Math.round(v * 100) / 100 : 0; };
+    return {
+      fisico: { ativo: $('fm-fisico').checked, preco: n('fm-fisico-preco') },
+      ebook: { ativo: $('fm-ebook').checked, preco: n('fm-ebook-preco') },
+      audio: { ativo: $('fm-audio').checked, preco: n('fm-audio-preco') }
+    };
+  }
+  function porFormatoNoForm(fm) {
+    fm = fm || {};
+    ['fisico', 'ebook', 'audio'].forEach(function (k) {
+      var f = fm[k] || {};
+      if ($('fm-' + k)) $('fm-' + k).checked = !!f.ativo;
+      if ($('fm-' + k + '-preco')) $('fm-' + k + '-preco').value = f.preco || '';
+    });
+  }
+
+  // ---------- livro digital (EPUB) ----------
+  var lvEpub = null, lvAmostra = null;
+
+  // Gera uma amostra de um EPUB: mantém só os primeiros capítulos e os arquivos que eles usam.
+  // Mesma função que vai para o site (admin.html / painel-prestador.html).
+  async function gerarAmostraEpub(JSZip, arrayBuffer, maxCapitulos) {
+    const zip = await JSZip.loadAsync(arrayBuffer);
+    const texto = (p) => zip.file(p) ? zip.file(p).async('string') : null;
+
+    const cont = await texto('META-INF/container.xml');
+    if (!cont) throw new Error('Arquivo EPUB inválido: falta o container.');
+    const opfPath = (/full-path="([^"]+)"/.exec(cont) || [])[1];
+    if (!opfPath || !zip.file(opfPath)) throw new Error('Arquivo EPUB inválido: falta o índice.');
+    const base = opfPath.indexOf('/') >= 0 ? opfPath.slice(0, opfPath.lastIndexOf('/') + 1) : '';
+    let opf = await texto(opfPath);
+
+    // manifest: id -> href
+    const itens = {};
+    opf.replace(/<item\b[^>]*>/g, (tag) => {
+      const id = (/\bid="([^"]+)"/.exec(tag) || [])[1];
+      const href = (/\bhref="([^"]+)"/.exec(tag) || [])[1];
+      const props = (/\bproperties="([^"]+)"/.exec(tag) || [])[1] || '';
+      if (id && href) itens[id] = { href: decodeURIComponent(href), props, tag };
+      return tag;
+    });
+    const spine = [];
+    opf.replace(/<itemref\b[^>]*>/g, (tag) => {
+      const idref = (/\bidref="([^"]+)"/.exec(tag) || [])[1];
+      if (idref && itens[idref]) spine.push(idref);
+      return tag;
+    });
+    if (!spine.length) throw new Error('Arquivo EPUB sem capítulos.');
+
+    const quantos = Math.max(1, Math.min(spine.length, maxCapitulos || Math.ceil(spine.length * 0.15)));
+    const ficam = new Set(spine.slice(0, quantos));
+
+    // Junta os arquivos usados pelos capítulos que ficam (imagens, css, fontes).
+    const resolver = (de, ref) => {
+      if (/^(https?:|data:|mailto:|#)/i.test(ref)) return null;
+      const limpo = decodeURIComponent(ref.split('#')[0].split('?')[0]);
+      if (!limpo) return null;
+      const partes = (de.slice(0, de.lastIndexOf('/') + 1) + limpo).split('/');
+      const pilha = [];
+      partes.forEach((s) => { if (s === '..') pilha.pop(); else if (s !== '.' && s !== '') pilha.push(s); });
+      return pilha.join('/');
+    };
+    const manter = new Set(['mimetype', 'META-INF/container.xml', opfPath]);
+    const usados = new Set();
+    for (const id of ficam) {
+      const caminho = base + itens[id].href;
+      manter.add(caminho);
+      const html = await texto(caminho);
+      if (!html) continue;
+      const refs = [];
+      html.replace(/(?:src|href)="([^"]+)"/g, (_, v) => { refs.push(v); return _; });
+      refs.forEach((v) => { const c = resolver(caminho, v); if (c && zip.file(c)) { manter.add(c); usados.add(c); } });
+    }
+    // CSS pode chamar fontes e imagens
+    for (const c of Array.from(usados)) {
+      if (!/\.css$/i.test(c)) continue;
+      const css = await texto(c);
+      if (!css) continue;
+      const refs = [];
+      css.replace(/url\(\s*['"]?([^'")]+)['"]?\s*\)/g, (_, v) => { refs.push(v); return _; });
+      refs.forEach((v) => { const r = resolver(c, v); if (r && zip.file(r)) manter.add(r); });
+    }
+    // a navegação (sumário) é obrigatória no EPUB 3
+    const navId = Object.keys(itens).find((id) => /nav/.test(itens[id].props));
+    if (navId) manter.add(base + itens[navId].href);
+    const ncxId = Object.keys(itens).find((id) => /\.ncx$/i.test(itens[id].href));
+    if (ncxId) manter.add(base + itens[ncxId].href);
+
+    // Reescreve o índice: só os itens que sobraram
+    const vivos = new Set();
+    Object.keys(itens).forEach((id) => { if (manter.has(base + itens[id].href)) vivos.add(id); });
+    opf = opf.replace(/<item\b[^>]*\/?>/g, (tag) => {
+      const id = (/\bid="([^"]+)"/.exec(tag) || [])[1];
+      return (!id || vivos.has(id)) ? tag : '';
+    });
+    opf = opf.replace(/<itemref\b[^>]*\/?>/g, (tag) => {
+      const idref = (/\bidref="([^"]+)"/.exec(tag) || [])[1];
+      return (!idref || ficam.has(idref)) ? tag : '';
+    });
+    opf = opf.replace(/(<dc:title[^>]*>)([\s\S]*?)(<\/dc:title>)/, (_, a, t, b2) => a + t.trim() + ' (amostra)' + b2);
+
+    const saida = new JSZip();
+    saida.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
+    for (const caminho of manter) {
+      if (caminho === 'mimetype') continue;
+      if (caminho === opfPath) { saida.file(opfPath, opf); continue; }
+      const f = zip.file(caminho);
+      if (f) saida.file(caminho, await f.async('uint8array'));
+    }
+    return { blob: await saida.generateAsync({ type: 'uint8array', compression: 'DEFLATE' }), capitulos: quantos, total: spine.length };
+  }
+
+  function lerArquivoComoBase64(bytes, mime) {
+    var s2 = '', b = bytes;
+    for (var i = 0; i < b.length; i += 8192) s2 += String.fromCharCode.apply(null, b.subarray(i, i + 8192));
+    return 'data:' + mime + ';base64,' + btoa(s2);
+  }
+
+  function mostrarEpub() {
+    var alvo = $('lv-epub-prev'); if (!alvo) return;
+    alvo.innerHTML = lvEpub
+      ? '<div class="media-item"><span class="pdf"><b>📖</b>' + esc(lvEpub.name) + '</span><span class="tag">EPUB</span><button class="rm" type="button" id="lv-epub-rm">×</button></div>'
+      : '';
+    var r = $('lv-epub-rm');
+    if (r) r.onclick = function () { lvEpub = null; lvAmostra = null; $('lv-epub-aviso').textContent = ''; mostrarEpub(); };
+  }
+
+  if ($('lv-epub')) $('lv-epub').onchange = function () {
+    var f = this.files[0]; this.value = '';
+    if (!f) return;
+    if (f.size > 15 * 1024 * 1024) { toast('O EPUB precisa ter no máximo 15 MB.', true); return; }
+    if (typeof JSZip === 'undefined') { toast('Não consegui preparar o arquivo agora. Recarregue a página.', true); return; }
+    $('lv-epub-aviso').textContent = 'Preparando o livro e a amostra…';
+    f.arrayBuffer().then(function (buf) {
+      var bytes = new Uint8Array(buf);
+      lvEpub = { name: f.name, src: lerArquivoComoBase64(bytes, 'application/epub+zip') };
+      return gerarAmostraEpub(JSZip, buf, 0).then(function (r) {
+        lvAmostra = { name: 'amostra-' + f.name, src: lerArquivoComoBase64(r.blob, 'application/epub+zip') };
+        $('lv-epub-aviso').textContent = 'Pronto: a amostra grátis terá ' + r.capitulos + ' de ' + r.total + ' capítulos. O livro inteiro só abre para quem comprar.';
+        mostrarEpub();
+      });
+    }).catch(function (e) {
+      lvEpub = null; lvAmostra = null;
+      $('lv-epub-aviso').textContent = '';
+      toast(e && e.message ? e.message : 'Não consegui ler esse EPUB.', true);
+      mostrarEpub();
+    });
+  };
+
   function showPdf() { $('lv-pdf-prev').innerHTML = lvPdf ? '<div class="media-item"><a class="pdf" href="' + lvPdf.src + '" download="' + esc(lvPdf.name) + '"><b>📄</b>' + esc(lvPdf.name) + '</a><span class="tag">PDF</span><button class="rm" type="button" id="lv-pdf-rm">×</button></div>' : ''; var r = $('lv-pdf-rm'); if (r) r.onclick = function () { lvPdf = null; showPdf(); }; }
   $('lv-capa').onchange = function () { var f = this.files[0]; this.value = ''; if (!f) return; S.readMedia(f, { only: ['image'], max: 700 }).then(function (m) { lvCapa = m.src; showCapa(); }).catch(function (e) { toast(e.message, true); }); };
   $('lv-pdf').onchange = function () { var f = this.files[0]; this.value = ''; if (!f) return; S.readMedia(f, { only: ['pdf'] }).then(function (m) { lvPdf = { name: m.name, src: m.src }; showPdf(); }).catch(function (e) { toast(e.message, true); }); };
@@ -1305,13 +1545,16 @@ var SERVICOS_PADRAO = [{"title": "Terapia e Bem-Estar", "items": [{"name": "Psic
     lvEdit = null; lvCapa = null; lvPdf = null; showCapa(); showPdf(); lvMidias.clear();
     ['lv-titulo', 'lv-sinopse', 'lv-preco', 'lv-preco-ant', 'lv-paginas', 'lv-isbn', 'lv-peso', 'lv-altura', 'lv-largura', 'lv-espessura'].forEach(function (id) { $(id).value = ''; });
     $('lv-genero').value = ''; $('lv-formato').value = 'fisico'; $('lv-estoque').value = '1';
+    lvAudio = []; mostrarAudio(); porFormatoNoForm(null);
     $('lv-form-t').textContent = 'Novo livro'; $('lv-salvar').querySelector('span').textContent = 'Publicar livro'; $('lv-cancel').classList.add('hidden');
   }
   $('lv-cancel').onclick = lvReset;
   $('lv-salvar').onclick = function () {
     var d = { titulo: $('lv-titulo').value.trim(), genero: $('lv-genero').value, sinopse: $('lv-sinopse').value.trim(), preco: parseFloat($('lv-preco').value),
       precoAnterior: parseFloat($('lv-preco-ant').value) || null, formato: $('lv-formato').value, estoque: parseInt($('lv-estoque').value, 10) || 0,
+      formatos: formatosDoForm(), audio: lvAudio.filter(function (f) { return f.id && !f.enviando; }).map(function (f) { return { id: f.id, titulo: f.titulo, arquivo: f.arquivo, tamanho: f.tamanho }; }),
       paginas: $('lv-paginas').value, isbn: $('lv-isbn').value.trim(), capa: lvCapa, pdf: lvPdf, midias: lvMidias.get(),
+      arquivoCompleto: lvEpub ? lvEpub.src : '', amostra: lvAmostra ? lvAmostra.src : '',
       peso: parseFloat($('lv-peso').value) || null, altura: parseFloat($('lv-altura').value) || null, largura: parseFloat($('lv-largura').value) || null, espessura: parseFloat($('lv-espessura').value) || null };
     if (!d.titulo || !d.genero || !d.sinopse || !(d.preco >= 0) || isNaN(d.preco)) { flash('lv-msg', 'Preencha título, gênero, sinopse e preço.', true); return; }
     if (!d.capa) { flash('lv-msg', 'Envie a capa do livro.', true); return; }
@@ -1347,6 +1590,13 @@ var SERVICOS_PADRAO = [{"title": "Terapia e Bem-Estar", "items": [{"name": "Psic
       lvEdit = l.id; $('lv-titulo').value = l.titulo; $('lv-genero').value = l.genero || ''; $('lv-sinopse').value = l.sinopse; $('lv-preco').value = l.preco;
       $('lv-preco-ant').value = l.precoAnterior || ''; $('lv-formato').value = l.formato || 'fisico'; $('lv-estoque').value = l.estoque || 0; $('lv-paginas').value = l.paginas || ''; $('lv-isbn').value = l.isbn || ''; $('lv-peso').value = l.peso || ''; $('lv-altura').value = l.altura || ''; $('lv-largura').value = l.largura || ''; $('lv-espessura').value = l.espessura || '';
       lvCapa = l.capa || null; lvPdf = l.pdf || null; showCapa(); showPdf(); lvMidias.set(l.midias || []);
+      lvAudio = (l.audio || []).map(function (f) { return { id: f.id, titulo: f.titulo, arquivo: f.arquivo, tamanho: f.tamanho }; });
+      mostrarAudio();
+      porFormatoNoForm(l.formatos || { fisico: { ativo: l.formato !== 'ebook', preco: l.preco }, ebook: { ativo: l.formato === 'ebook' || l.formato === 'ambos', preco: l.preco }, audio: { ativo: false, preco: 0 } });
+      lvEpub = l.arquivoCompleto ? { name: 'livro.epub', src: l.arquivoCompleto } : null;
+      lvAmostra = l.amostra ? { name: 'amostra.epub', src: l.amostra } : null;
+      if ($('lv-epub-aviso')) $('lv-epub-aviso').textContent = lvEpub ? 'Este livro já tem o arquivo digital. Envie outro só se quiser trocar.' : '';
+      mostrarEpub();
       $('lv-form-t').textContent = 'Editar livro'; $('lv-salvar').querySelector('span').textContent = 'Salvar alterações'; $('lv-cancel').classList.remove('hidden');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }

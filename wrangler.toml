@@ -8,5 +8,9 @@ binding = "ASSETS"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "omegahub"
-database_id = "6dc0c3de-d61b-4e5c-acf7-0b8f0e0dc7d8"
+database_name = "servicoshub"
+database_id = "2a66e1a8-714d-49be-8e38-f4f8d3eb6f4d"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "omega-arquivos"

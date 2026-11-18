@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Leitor — Soluções Omega</title>
+<link rel="icon" href="assets/img/logo-livros.png">
+<style>
+  :root{
+    --primary:#0b2a4a; --gold:#f7c52b; --muted:#6b7280; --line:#e5e7eb;
+    --fundo:#ffffff; --papel:#ffffff; --texto:#111827; --barra:#ffffff;
+  }
+  [data-tema="sepia"]{ --fundo:#f4ecd8; --papel:#f4ecd8; --texto:#4a3b2a; --barra:#efe4cc; --line:#e0d3b8; }
+  [data-tema="escuro"]{ --fundo:#13161b; --papel:#13161b; --texto:#e7e9ee; --barra:#1b1f26; --line:#2a3039; --muted:#9aa3b2; }
+
+  *{ box-sizing:border-box }
+  html,body{ margin:0; padding:0; height:100%; background:var(--fundo); color:var(--texto);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; overscroll-behavior:none; }
+
+  .topo{ position:fixed; top:0; left:0; right:0; height:56px; z-index:20; display:flex; align-items:center; gap:10px;
+    padding:0 12px; background:var(--barra); border-bottom:1px solid var(--line);
+    padding-top:env(safe-area-inset-top); height:calc(56px + env(safe-area-inset-top)); }
+  .topo .titulo{ flex:1; min-width:0; font-size:14px; font-weight:700; line-height:1.25;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  .topo .titulo span{ display:block; font-size:12px; font-weight:500; color:var(--muted);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  .ic{ width:40px; height:40px; min-width:40px; display:grid; place-items:center; border:0; border-radius:10px;
+    background:transparent; color:var(--texto); cursor:pointer; font-size:18px; padding:0 }
+  .ic:hover{ background:rgba(127,127,127,.14) }
+
+  #area{ position:fixed; top:calc(56px + env(safe-area-inset-top)); bottom:calc(52px + env(safe-area-inset-bottom));
+    left:0; right:0; background:var(--papel) }
+
+  .rodape{ position:fixed; left:0; right:0; bottom:0; height:calc(52px + env(safe-area-inset-bottom));
+    padding-bottom:env(safe-area-inset-bottom); z-index:20; display:flex; align-items:center; gap:8px;
+    padding-left:12px; padding-right:12px; background:var(--barra); border-top:1px solid var(--line) }
+  .rodape .barra{ flex:1; height:6px; border-radius:99px; background:var(--line); overflow:hidden }
+  .rodape .barra i{ display:block; height:100%; width:0; background:var(--gold); transition:width .25s }
+  .rodape .quanto{ font-size:12px; color:var(--muted); min-width:42px; text-align:right }
+
+  .painel{ position:fixed; z-index:30; background:var(--barra); border:1px solid var(--line);
+    border-radius:14px; box-shadow:0 18px 50px rgba(0,0,0,.18); padding:14px; display:none }
+  .painel.aberto{ display:block }
+  #painel-ajustes{ top:calc(62px + env(safe-area-inset-top)); right:10px; width:260px }
+  .linha{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px }
+  .linha:last-child{ margin-bottom:0 }
+  .linha b{ font-size:13px; font-weight:700 }
+  .grupo{ display:flex; gap:6px }
+  .grupo button{ border:1.5px solid var(--line); background:transparent; color:var(--texto);
+    border-radius:9px; padding:7px 11px; cursor:pointer; font:inherit; font-size:13px }
+  .grupo button[aria-pressed="true"]{ border-color:var(--gold); background:rgba(247,197,43,.18); font-weight:700 }
+
+  #painel-sumario{ top:calc(62px + env(safe-area-inset-top)); left:10px; right:10px; max-width:420px;
+    max-height:70vh; overflow:auto; padding:8px }
+  #painel-sumario a{ display:block; padding:11px 10px; border-radius:9px; color:var(--texto);
+    text-decoration:none; font-size:14px; border-bottom:1px solid var(--line) }
+  #painel-sumario a:last-child{ border-bottom:0 }
+  #painel-sumario a:hover{ background:rgba(127,127,127,.12) }
+
+  .aviso{ position:fixed; inset:0; z-index:40; display:none; place-items:center; padding:24px;
+    background:rgba(8,14,24,.55); backdrop-filter:blur(2px) }
+  .aviso.aberto{ display:grid }
+  .aviso .caixa{ background:#fff; color:#111827; border-radius:16px; max-width:440px; width:100%;
+    padding:26px; text-align:center; box-shadow:0 24px 60px rgba(0,0,0,.3) }
+  .aviso h2{ margin:0 0 8px; font-size:20px; color:var(--primary) }
+  .aviso p{ margin:0 0 18px; color:#4b5563; line-height:1.5; font-size:15px }
+  .btn{ display:inline-block; border:0; border-radius:11px; padding:13px 20px; font:inherit; font-weight:700;
+    cursor:pointer; text-decoration:none; font-size:15px }
+  .btn-gold{ background:var(--gold); color:var(--primary) }
+  .btn-ghost{ background:transparent; color:var(--primary); border:1.5px solid var(--line) }
+
+  .carregando{ position:fixed; inset:0; display:grid; place-items:center; color:var(--muted); font-size:14px; z-index:5 }
+
+  /* tocador de audiolivro */
+  #tocador{ position:fixed; top:calc(56px + env(safe-area-inset-top)); bottom:calc(52px + env(safe-area-inset-bottom));
+    left:0; right:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:24px }
+  #tocador[hidden]{ display:none }
+  .capa-audio{ width:min(62vw,230px); aspect-ratio:1; border-radius:20px; display:grid; place-items:center; font-size:64px;
+    background:linear-gradient(145deg,#1a5099,#0b2a4a); color:#f7c52b; box-shadow:0 18px 44px rgba(0,0,0,.28) }
+  .faixa-nome{ font-size:16px; font-weight:700; text-align:center; max-width:90%; line-height:1.3 }
+  .tempo{ display:flex; align-items:center; gap:10px; width:min(520px,92%); font-size:12px; color:var(--muted) }
+  .tempo input{ flex:1; accent-color:var(--gold) }
+  .controles{ display:flex; align-items:center; gap:22px }
+  .ic.grande{ width:54px; height:54px; font-size:14px; font-weight:800 }
+  .ic.play{ width:74px; height:74px; border-radius:50%; background:var(--gold); color:#0b2a4a; font-size:28px }
+  .ic.play:hover{ filter:brightness(1.05) }
+  .velocidade{ display:flex; gap:6px }
+  .vel{ border:1.5px solid var(--line); background:transparent; color:var(--texto); border-radius:9px;
+    padding:6px 11px; font:inherit; font-size:12.5px; cursor:pointer }
+  .vel[aria-pressed="true"]{ border-color:var(--gold); background:rgba(247,197,43,.18); font-weight:700 }
+
+  /* leitura limpa: some com as barras e o livro ocupa a tela toda */
+  body.limpo .topo, body.limpo .rodape{ opacity:0; pointer-events:none; transition:opacity .2s }
+  body.limpo #area{ top:0; bottom:0 }
+  .topo,.rodape{ transition:opacity .2s }
+  #area{ transition:top .2s,bottom .2s }
+
+  @media (min-width:900px){
+    #area{ left:50%; width:min(1100px,96vw); transform:translateX(-50%) }
+  }
+</style>
+</head>
+<body>
+
+<header class="topo">
+  <button class="ic" id="b-voltar" title="Voltar para a livraria" aria-label="Voltar">←</button>
+  <div class="titulo" id="t-titulo">Carregando…<span id="t-autor"></span></div>
+  <button class="ic" id="b-sumario" title="Sumário" aria-label="Sumário">☰</button>
+  <button class="ic" id="b-ajustes" title="Ajustes de leitura" aria-label="Ajustes">Aa</button>
+</header>
+
+<div id="area"></div>
+<div id="tocador" hidden>
+  <div class="capa-audio">🎧</div>
+  <div class="faixa-nome" id="faixa-nome">—</div>
+  <audio id="som" preload="metadata"></audio>
+  <div class="tempo"><span id="t-agora">0:00</span>
+    <input type="range" id="t-barra" min="0" max="1000" value="0" step="1" aria-label="Posição da faixa">
+    <span id="t-total">0:00</span></div>
+  <div class="controles">
+    <button class="ic grande" id="b-volta15" title="Voltar 15 segundos">⟲15</button>
+    <button class="ic play" id="b-play" title="Tocar">▶</button>
+    <button class="ic grande" id="b-frente15" title="Avançar 15 segundos">15⟳</button>
+  </div>
+  <div class="velocidade">
+    <button class="vel" data-vel="0.8">0,8×</button><button class="vel" data-vel="1" aria-pressed="true">1×</button>
+    <button class="vel" data-vel="1.25">1,25×</button><button class="vel" data-vel="1.5">1,5×</button>
+  </div>
+</div>
+<div class="carregando" id="carregando">Abrindo o livro…</div>
+
+<footer class="rodape">
+  <button class="ic" id="b-ant" title="Página anterior" aria-label="Anterior">‹</button>
+  <div class="barra"><i id="progresso"></i></div>
+  <span class="quanto" id="quanto">—</span>
+  <button class="ic" id="b-prox" title="Próxima página" aria-label="Próxima">›</button>
+</footer>
+
+<div class="painel" id="painel-ajustes">
+  <div class="linha"><b>Tamanho da letra</b>
+    <div class="grupo"><button id="letra-menos">A−</button><button id="letra-mais">A+</button></div>
+  </div>
+  <div class="linha"><b>Fundo</b>
+    <div class="grupo">
+      <button data-tema="claro">Claro</button>
+      <button data-tema="sepia">Sépia</button>
+      <button data-tema="escuro">Escuro</button>
+    </div>
+  </div>
+</div>
+
+<div class="painel" id="painel-sumario"></div>
+
+<div class="aviso" id="aviso">
+  <div class="caixa">
+    <h2 id="aviso-t">Fim da amostra</h2>
+    <p id="aviso-p">Você leu os capítulos liberados deste livro. Para continuar, compre o livro na nossa livraria.</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <a class="btn btn-gold" id="aviso-comprar" href="livros.html">Comprar o livro</a>
+      <button class="btn btn-ghost" id="aviso-fechar" type="button">Continuar lendo a amostra</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/jszip.min.js"></script>
+<script src="assets/js/epub.min.js"></script>
+<script>
+(function () {
+  var par = new URLSearchParams(location.search);
+  var chave = (par.get('chave') || '').trim().toUpperCase();
+  var arquivoDireto = par.get('arquivo') || '';
+  var tituloPar = par.get('titulo') || '';
+  var autorPar = par.get('autor') || '';
+  var livroId = par.get('livro') || '';
+  var ehAmostra = !chave;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var livro = null, vis = null, guardarEm = 'omega_leitura_' + (chave || livroId || 'amostra');
+
+  function erroNaTela(titulo, texto) {
+    $('carregando').style.display = 'none';
+    $('aviso-t').textContent = titulo;
+    $('aviso-p').textContent = texto;
+    $('aviso-fechar').style.display = 'none';
+    $('aviso').classList.add('aberto');
+  }
+
+  // ---------- preferências de leitura ----------
+  var escuroNoAparelho = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var prefs = { letra: 100, tema: escuroNoAparelho ? 'escuro' : 'claro' };
+  try { prefs = Object.assign(prefs, JSON.parse(localStorage.getItem('omega_leitor_prefs') || '{}')); } catch (e) {}
+  function salvarPrefs() { try { localStorage.setItem('omega_leitor_prefs', JSON.stringify(prefs)); } catch (e) {} }
+  function aplicarPrefs() {
+    document.documentElement.setAttribute('data-tema', prefs.tema);
+    Array.prototype.forEach.call(document.querySelectorAll('[data-tema]'), function (b) {
+      if (b.tagName === 'BUTTON') b.setAttribute('aria-pressed', b.dataset.tema === prefs.tema ? 'true' : 'false');
+    });
+    if (vis) {
+      vis.themes.fontSize(prefs.letra + '%');
+      // Regra com !important em todos os elementos: é a única que vence o estilo
+      // que o próprio livro traz escrito em cada parágrafo.
+      var corTexto = prefs.tema === 'escuro' ? '#e9ebf0' : (prefs.tema === 'sepia' ? '#43361f' : '#111827');
+      var corFundo = prefs.tema === 'escuro' ? '#13161b' : (prefs.tema === 'sepia' ? '#f4ecd8' : '#ffffff');
+      if (prefs.tema === 'claro') {
+        vis.themes.default({ 'body': { 'background': '#ffffff' } });
+      } else {
+        vis.themes.default({
+          'body': { 'background': corFundo + ' !important' },
+          'body *, p, div, span, h1, h2, h3, h4, h5, h6, li, td, blockquote, em, strong, i, b, a': {
+            'color': corTexto + ' !important',
+            'background-color': 'transparent !important'
+          },
+          'img.bg, img[class*="bg"]': { 'opacity': '.22' }
+        });
+      }
+    }
+    salvarPrefs();
+  }
+
+  // ---------- abre o livro ----------
+  // Busca o arquivo primeiro: assim dá para avisar direito quando o servidor recusa,
+  // e o leitor recebe o EPUB em memória (não depende da terminação do endereço).
+  function buscarEAbrir(url, titulo, autor) {
+    fetch(url, { credentials: 'same-origin' })
+      .then(function (r) {
+        if (r.status === 403) throw new Error('bloqueado');
+        if (!r.ok) throw new Error('falhou');
+        return r.arrayBuffer();
+      })
+      .then(function (buf) { abrir(buf, titulo, autor); })
+      .catch(function (e) {
+        if (e && e.message === 'bloqueado') erroNaTela('Livro só para quem comprou', 'Este arquivo é do livro completo. Abra pelo link que você recebeu na compra, ou leia a amostra grátis na livraria.');
+        else erroNaTela('Não consegui abrir o livro', 'O arquivo pode estar indisponível no momento. Tente de novo em alguns instantes.');
+      });
+  }
+
+  function abrir(fonte, titulo, autor) {
+    $('t-titulo').firstChild.nodeValue = titulo || 'Livro';
+    $('t-autor').textContent = autor || '';
+    document.title = (titulo || 'Leitor') + ' — Soluções Omega';
+
+    livro = ePub(fonte);
+    vis = livro.renderTo('area', { width: '100%', height: '100%', flow: 'paginated', spread: 'none', allowScriptedContent: false });
+
+    var volta = null;
+    try { volta = localStorage.getItem(guardarEm); } catch (e) {}
+    vis.display(volta || undefined).then(function () {
+      $('carregando').style.display = 'none';
+      aplicarPrefs();
+    }).catch(function () {
+      vis.display().then(function () { $('carregando').style.display = 'none'; aplicarPrefs(); })
+        .catch(function () { erroNaTela('Não consegui abrir o livro', 'O arquivo pode estar indisponível no momento. Tente de novo em alguns instantes.'); });
+    });
+
+    livro.ready.then(function () { return livro.locations.generate(1600); }).then(desenharProgresso).catch(function () {});
+
+    livro.loaded.navigation.then(function (nav) {
+      var alvo = $('painel-sumario'), itens = (nav && nav.toc) || [];
+      if (!itens.length) { alvo.innerHTML = '<a href="#" data-sem>Este livro não tem sumário.</a>'; return; }
+      alvo.innerHTML = itens.map(function (it, i) {
+        return '<a href="#" data-ir="' + encodeURIComponent(it.href) + '">' + ((it.label || ('Capítulo ' + (i + 1))).trim() || ('Capítulo ' + (i + 1))) + '</a>';
+      }).join('');
+    }).catch(function () {});
+
+    vis.on('relocated', function (loc) {
+      try { localStorage.setItem(guardarEm, loc.start.cfi); } catch (e) {}
+      desenharProgresso(loc);
+      if (ehAmostra && loc.atEnd) mostrarFimDaAmostra();
+    });
+
+    vis.on('keyup', teclado);
+    document.addEventListener('keyup', teclado);
+  }
+
+  function desenharProgresso(loc) {
+    try {
+      var cfi = (loc && loc.start && loc.start.cfi) || (vis && vis.currentLocation() && vis.currentLocation().start.cfi);
+      if (!cfi || !livro.locations || !livro.locations.length()) return;
+      var pct = Math.round(livro.locations.percentageFromCfi(cfi) * 100);
+      if (!isFinite(pct)) return;
+      $('progresso').style.width = pct + '%';
+      $('quanto').textContent = pct + '%';
+    } catch (e) {}
+  }
+
+  function mostrarFimDaAmostra() {
+    $('aviso-t').textContent = 'Fim da amostra';
+    $('aviso-p').textContent = 'Você leu os capítulos liberados deste livro. Para ler o resto, é só comprar na livraria.';
+    $('aviso-comprar').href = livroId ? ('livros.html?livro=' + encodeURIComponent(livroId)) : 'livros.html';
+    $('aviso').classList.add('aberto');
+  }
+
+  function teclado(e) {
+    var k = e && (e.key || e.code);
+    if (k === 'ArrowLeft') vis.prev();
+    if (k === 'ArrowRight') vis.next();
+  }
+
+  // ---------- botões ----------
+  $('b-ant').onclick = function () { vis && vis.prev(); };
+  $('b-prox').onclick = function () { vis && vis.next(); };
+  $('b-voltar').onclick = function () { location.href = 'livros.html'; };
+  $('aviso-fechar').onclick = function () { $('aviso').classList.remove('aberto'); };
+
+  function alternar(id) {
+    var p = $(id), outro = $(id === 'painel-ajustes' ? 'painel-sumario' : 'painel-ajustes');
+    outro.classList.remove('aberto');
+    p.classList.toggle('aberto');
+  }
+  $('b-ajustes').onclick = function (e) { e.stopPropagation(); alternar('painel-ajustes'); };
+  $('b-sumario').onclick = function (e) { e.stopPropagation(); alternar('painel-sumario'); };
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('.painel') || e.target.closest('.ic')) return;
+    $('painel-ajustes').classList.remove('aberto');
+    $('painel-sumario').classList.remove('aberto');
+  });
+
+  $('letra-mais').onclick = function () { prefs.letra = Math.min(180, prefs.letra + 10); aplicarPrefs(); };
+  $('letra-menos').onclick = function () { prefs.letra = Math.max(70, prefs.letra - 10); aplicarPrefs(); };
+  Array.prototype.forEach.call(document.querySelectorAll('.grupo button[data-tema]'), function (b) {
+    b.onclick = function () { prefs.tema = b.dataset.tema; aplicarPrefs(); };
+  });
+  $('painel-sumario').addEventListener('click', function (e) {
+    var a = e.target.closest('[data-ir]'); if (!a) return;
+    e.preventDefault();
+    vis.display(decodeURIComponent(a.dataset.ir));
+    $('painel-sumario').classList.remove('aberto');
+  });
+
+  // toque nas laterais vira a página; no meio, esconde as barras para a leitura ficar limpa
+  (function () {
+    var area = $('area');
+    area.addEventListener('click', function (e) {
+      var l = e.clientX / window.innerWidth;
+      if (l < 0.3) vis && vis.prev();
+      else if (l > 0.7) vis && vis.next();
+      else document.body.classList.toggle('limpo');
+    });
+  })();
+
+  // toque: arrastar para virar a página
+  (function () {
+    var x0 = null;
+    document.addEventListener('touchstart', function (e) { x0 = e.changedTouches[0].clientX; }, { passive: true });
+    document.addEventListener('touchend', function (e) {
+      if (x0 === null) return;
+      var dx = e.changedTouches[0].clientX - x0; x0 = null;
+      if (Math.abs(dx) < 45) return;
+      if (dx < 0) vis && vis.next(); else vis && vis.prev();
+    }, { passive: true });
+  })();
+
+  aplicarPrefs();
+
+
+  // ---------- tocador de audiolivro ----------
+  var faixas = [], faixaAtual = 0, som = $('som');
+
+  function mmss(seg) {
+    seg = Math.max(0, Math.floor(seg || 0));
+    var h = Math.floor(seg / 3600), m2 = Math.floor((seg % 3600) / 60), s2 = seg % 60;
+    return (h ? h + ':' + String(m2).padStart(2, '0') : m2) + ':' + String(s2).padStart(2, '0');
+  }
+
+  function abrirAudio(lista, titulo, autor) {
+    faixas = lista || [];
+    if (!faixas.length) { erroNaTela('Audiolivro sem faixas', 'Este livro ainda não tem áudio publicado. Fale com a gente que resolvemos.'); return; }
+    $('t-titulo').firstChild.nodeValue = titulo || 'Audiolivro';
+    $('t-autor').textContent = autor || '';
+    document.title = (titulo || 'Audiolivro') + ' — Soluções Omega';
+    document.getElementById('area').style.display = 'none';
+    $('tocador').hidden = false;
+    $('carregando').style.display = 'none';
+    $('b-sumario').onclick = function (e) { e.stopPropagation(); listarFaixas(); alternar('painel-sumario'); };
+
+    var volta = null;
+    try { volta = JSON.parse(localStorage.getItem(guardarEm) || 'null'); } catch (e) {}
+    irParaFaixa((volta && volta.faixa) || 0, (volta && volta.segundo) || 0, false);
+  }
+
+  function listarFaixas() {
+    $('painel-sumario').innerHTML = faixas.map(function (f, i) {
+      return '<a href="#" data-faixa="' + i + '">' + (i === faixaAtual ? '▶ ' : '') + (f.titulo || ('Faixa ' + (i + 1))) + '</a>';
+    }).join('');
+  }
+
+  function irParaFaixa(i, segundo, tocar) {
+    if (i < 0 || i >= faixas.length) return;
+    faixaAtual = i;
+    $('faixa-nome').textContent = faixas[i].titulo || ('Faixa ' + (i + 1));
+    som.src = faixas[i].arquivo;
+    som.load();
+    if (segundo) som.addEventListener('loadedmetadata', function uma() { som.currentTime = segundo; som.removeEventListener('loadedmetadata', uma); });
+    if (tocar) som.play().catch(function () {});
+    listarFaixas();
+    guardarPonto();
+  }
+
+  function guardarPonto() {
+    try { localStorage.setItem(guardarEm, JSON.stringify({ faixa: faixaAtual, segundo: Math.floor(som.currentTime || 0) })); } catch (e) {}
+  }
+
+  if (som) {
+    som.addEventListener('timeupdate', function () {
+      $('t-agora').textContent = mmss(som.currentTime);
+      if (som.duration) {
+        $('t-barra').value = Math.round(som.currentTime / som.duration * 1000);
+        $('progresso').style.width = Math.round((faixaAtual + som.currentTime / som.duration) / faixas.length * 100) + '%';
+        $('quanto').textContent = Math.round((faixaAtual + som.currentTime / som.duration) / faixas.length * 100) + '%';
+      }
+      if (Math.floor(som.currentTime) % 5 === 0) guardarPonto();
+    });
+    som.addEventListener('loadedmetadata', function () { $('t-total').textContent = mmss(som.duration); });
+    som.addEventListener('play', function () { $('b-play').textContent = '❚❚'; });
+    som.addEventListener('pause', function () { $('b-play').textContent = '▶'; guardarPonto(); });
+    som.addEventListener('ended', function () { if (faixaAtual + 1 < faixas.length) irParaFaixa(faixaAtual + 1, 0, true); });
+    som.addEventListener('error', function () {
+      if (!faixas.length) return;
+      erroNaTela('Não consegui tocar esta faixa', 'O arquivo pode estar indisponível agora, ou o link de leitura expirou. Tente abrir de novo pelo link que você recebeu.');
+    });
+    $('b-play').onclick = function () { if (som.paused) som.play().catch(function () {}); else som.pause(); };
+    $('b-volta15').onclick = function () { som.currentTime = Math.max(0, som.currentTime - 15); };
+    $('b-frente15').onclick = function () { som.currentTime = Math.min(som.duration || 0, som.currentTime + 15); };
+    $('t-barra').addEventListener('input', function () { if (som.duration) som.currentTime = this.value / 1000 * som.duration; });
+    Array.prototype.forEach.call(document.querySelectorAll('.vel'), function (b) {
+      b.onclick = function () {
+        som.playbackRate = parseFloat(b.dataset.vel);
+        Array.prototype.forEach.call(document.querySelectorAll('.vel'), function (o) { o.setAttribute('aria-pressed', o === b ? 'true' : 'false'); });
+      };
+    });
+    $('painel-sumario').addEventListener('click', function (e) {
+      var a = e.target.closest('[data-faixa]'); if (!a) return;
+      e.preventDefault();
+      irParaFaixa(+a.dataset.faixa, 0, true);
+      $('painel-sumario').classList.remove('aberto');
+    });
+    $('b-ant').addEventListener('click', function () { if (faixas.length) irParaFaixa(faixaAtual - 1, 0, true); });
+    $('b-prox').addEventListener('click', function () { if (faixas.length) irParaFaixa(faixaAtual + 1, 0, true); });
+  }
+
+  // ---------- de onde vem o arquivo ----------
+  if (chave) {
+    // Livro inteiro: o servidor confere a chave de leitura.
+    fetch('/api/leitura/' + encodeURIComponent(chave))
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok || !res.d || (!res.d.arquivo && !(res.d.faixas || []).length)) {
+          erroNaTela('Não consegui abrir este livro', (res.d && res.d.erro) || 'Chave de leitura inválida. Use o link que você recebeu na compra.');
+          return;
+        }
+        ehAmostra = false;
+        if (res.d.formato === 'audio') { abrirAudio(res.d.faixas, res.d.titulo || tituloPar, res.d.autor || autorPar); return; }
+        buscarEAbrir(res.d.arquivo, res.d.titulo || tituloPar, res.d.autor || autorPar);
+      })
+      .catch(function () { erroNaTela('Sem conexão', 'Não consegui falar com o servidor agora. Verifique sua internet e tente de novo.'); });
+  } else if (arquivoDireto && /^\/api\/midia\/[a-f0-9]{16,64}$/.test(arquivoDireto)) {
+    buscarEAbrir(arquivoDireto, tituloPar, autorPar);
+  } else {
+    erroNaTela('Nada para ler aqui', 'Abra um livro pela livraria: cada livro com amostra tem o botão “Ler amostra”.');
+    $('aviso-comprar').textContent = 'Ir para a livraria';
+  }
+})();
+</script>
+</body>
+</html>

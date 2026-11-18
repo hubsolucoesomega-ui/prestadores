@@ -463,7 +463,10 @@ window.omegaProbeBanners=function(prefix,cb){var found=[],n=1,exts=['jpg','png',
       <button type="button" id="abrir-generos" class="ind-chamada"><strong>Clique aqui no filtro</strong> e a gente indica o livro certo para você.</button>
       <div id="generos-filtro" hidden></div>
     </div>
-    <div class="hero-search">
+    <div class="ja-comprei" style="margin-bottom:10px;text-align:right">
+        <a href="#" id="abrir-chave" style="color:rgba(255,255,255,.85);font-size:13px;font-weight:600;text-decoration:underline">Já comprei um ebook — abrir meu livro</a>
+      </div>
+      <div class="hero-search">
       <span class="hs-campo">
         <input type="search" id="busca-livros" placeholder="Busque por título, autor, categoria ou assunto..." autocomplete="off" aria-label="Buscar livros">
         <button type="button" id="busca-livros-mic" class="hs-mic" aria-label="Buscar livros por voz" title="Buscar por voz"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/></svg></button>
@@ -1170,6 +1173,7 @@ var SERVICOS_PADRAO = [{"title": "Terapia e Bem-Estar", "items": [{"name": "Psic
 
   return {
     api: API, trocarSenha: trocarSenha, enviarPedido: enviarPedido, enviarCarta: enviarCarta, validarVale: validarVale,
+    call: call, token: function () { var s = sess(); return (s && s.token) || ''; },
     ocultos: ocultos, oculto: oculto, salvarOcultos: salvarOcultos, EXEMPLOS: EXEMPLOS,
     importarNavegador: importarNavegador, sairAdmin: sairAdmin,
     get CATEGORIAS() { return listaCategorias(); }, get GENEROS() { return catalogo().generos; }, catalogo: catalogo, salvarCatalogo: salvarCatalogo, SERVICOS_PADRAO: SERVICOS_PADRAO, LIMITS: LIMITS,
@@ -1223,9 +1227,38 @@ var LIVROS_AUTORES = [];
   OmegaStore.publishedBooks().forEach(function(x, i){
     var l = x.livro;
     LIVROS_AUTORES.push({ id:'a_'+l.id, autorId:x.autorId, livroId:l.id, formato:l.formato||'fisico', estoque:(l.estoque==null?1:l.estoque), foto:l.capa, emoji:'📖', cor:'#e8f0fb', cat:l.genero||'', categoria:gl[l.genero]||'Livro', titulo:l.titulo, autor:x.autor,
-      preco:brl(l.preco), precoAnterior:l.precoAnterior?brl(l.precoAnterior):'', avaliacao:'', avaliacoes:0, badge:'Autor parceiro', pdf:l.pdf||null, whats:x.whats||'' });
+      preco:brl(l.preco), precoAnterior:l.precoAnterior?brl(l.precoAnterior):'', avaliacao:'', avaliacoes:0, badge:'Autor parceiro', pdf:l.pdf||null, whats:x.whats||'',
+      amostraEpub: (typeof l.amostra === 'string' && l.amostra) || (l.amostra && l.amostra.src) || '',
+      formatos: l.formatos || null, temAudio: !!(l.audio && l.audio.length) });
   });
 })();
+
+// Quem comprou um ebook recebe uma chave de leitura: aqui ela abre o livro.
+(function () {
+  var link = document.getElementById('abrir-chave');
+  if (!link) return;
+  link.addEventListener('click', function (e) {
+    e.preventDefault();
+    var c = window.prompt('Digite a chave de leitura que você recebeu na compra:', '');
+    if (c === null) return;
+    c = String(c).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (c.length < 10) { alert('Essa chave não parece completa. Confira o código que você recebeu.'); return; }
+    location.href = 'ler.html?chave=' + encodeURIComponent(c);
+  });
+})();
+
+// Quantos formatos este livro vende, e qual o menor preço (para o cartão da loja).
+function contaFormatos(l){
+  var fm = l.formatos || {}, n = 0;
+  ['fisico','ebook','audio'].forEach(function(k){ if (fm[k] && fm[k].ativo && fm[k].preco > 0) n++; });
+  return n;
+}
+function menorPreco(l){
+  var fm = l.formatos || {}, precos = [];
+  ['fisico','ebook','audio'].forEach(function(k){ if (fm[k] && fm[k].ativo && fm[k].preco > 0) precos.push(fm[k].preco); });
+  if (!precos.length) return l.preco;
+  return 'R$ ' + Math.min.apply(null, precos).toFixed(2).replace('.', ',');
+}
 
 function escL(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function capaHtml(l){
@@ -1244,10 +1277,11 @@ function renderBookCard(livro) {
       +'<div class="book-author">'+escL(livro.autor)+'</div>'
       +(livro.avaliacao ? '<div class="book-stars"><span class="stars">★★★★★</span> '+livro.avaliacao+' ('+livro.avaliacoes+')</div>' : '<div class="book-stars" style="color:var(--muted)">Ainda sem avaliações</div>')
       +'<div class="book-price">'
-        +'<div><span class="price-new">'+escL(livro.preco)+'</span>'+(livro.precoAnterior ? '<br><span class="price-old">'+escL(livro.precoAnterior)+'</span>' : '')+'</div>'
+        +'<div>'+(contaFormatos(livro) > 1 ? '<span style="display:block;font-size:11px;color:var(--muted);font-weight:700">A PARTIR DE</span>' : '')+'<span class="price-new">'+escL(menorPreco(livro))+'</span>'+(livro.precoAnterior ? '<br><span class="price-old">'+escL(livro.precoAnterior)+'</span>' : '')+'</div>'
       +'</div>'
       +'<button class="btn-comprar" onclick="adicionarCarrinho(\''+livro.id+'\')"'+(livro.formato==='fisico'&&livro.estoque===0?' disabled style="opacity:.55;cursor:not-allowed">Esgotado':'><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2 2h3l2.7 12.4a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.5L22 7H6"/></svg>Comprar')+'</button>'
-      +(livro.pdf ? '<a class="btn-amostra" href="'+livro.pdf.src+'" download="'+escL(livro.pdf.name||'amostra.pdf')+'">📄 Ler amostra (PDF)</a>' : '')
+      +(livro.amostraEpub ? '<a class="btn-amostra" href="ler.html?arquivo='+encodeURIComponent(livro.amostraEpub)+'&livro='+encodeURIComponent(livro.id)+'&titulo='+encodeURIComponent(livro.titulo||'')+'&autor='+encodeURIComponent(livro.autor||'')+'">📖 Ler amostra grátis</a>' : '')
+      +(livro.pdf ? '<a class="btn-amostra" href="'+livro.pdf.src+'" download="'+escL(livro.pdf.name||'amostra.pdf')+'">📄 Baixar amostra (PDF)</a>' : '')
     +'</div>'
   +'</div>';
 }
@@ -1521,7 +1555,7 @@ var Loja = (function () {
   function setCart(c) { wr(KEY_CART, c); contador(); }
   function contador() { var n = cart().reduce(function (a, i) { return a + i.qty; }, 0); var el = $('cart-count'); if (el) el.textContent = n; }
   function total(c) { return c.reduce(function (a, i) { return a + i.preco * i.qty; }, 0); }
-  function precisaEntrega(c) { return c.some(function (i) { return i.formato !== 'ebook' && i.tipo !== 'vale'; }); }
+  function precisaEntrega(c) { return c.some(function (i) { return i.formato !== 'ebook' && i.formato !== 'audio' && i.tipo !== 'vale'; }); }
 
   // ---------- vale presente ----------
   var VALE = null;   // { codigo, saldo } conferido no servidor
@@ -1558,7 +1592,71 @@ var Loja = (function () {
   var toastT;
   function toast(t) { $('lj-toast-t').textContent = t; $('lj-toast').classList.add('show'); clearTimeout(toastT); toastT = setTimeout(function () { $('lj-toast').classList.remove('show'); }, 3200); }
 
+  // Quais formatos este livro vende, com o preço de cada um.
+  function formatosDoLivro(l) {
+    var fm = l.formatos || {}, saida = [];
+    var nomes = { fisico: 'Livro impresso', ebook: 'E-book (ler no site)', audio: 'Audiolivro (ouvir no site)' };
+    ['fisico', 'ebook', 'audio'].forEach(function (k) {
+      var f = fm[k];
+      if (f && f.ativo && f.preco > 0) saida.push({ chave: k, nome: nomes[k], preco: f.preco });
+    });
+    if (!saida.length) saida.push({ chave: l.formato === 'ebook' ? 'ebook' : 'fisico', nome: nomes[l.formato === 'ebook' ? 'ebook' : 'fisico'], preco: num(l.preco) });
+    return saida;
+  }
+
+  function escolherFormato(l, depois) {
+    var fs2 = formatosDoLivro(l);
+    if (fs2.length === 1) { depois(fs2[0]); return; }
+    var fundo = document.createElement('div');
+    fundo.style.cssText = 'position:fixed;inset:0;z-index:999;background:rgba(8,14,24,.5);display:grid;place-items:center;padding:20px';
+    fundo.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:380px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.3)">' +
+      '<div style="font-size:12px;font-weight:800;letter-spacing:.08em;color:var(--muted)">COMO VOCÊ QUER ESTE LIVRO?</div>' +
+      '<div style="font-size:18px;font-weight:800;color:var(--primary);margin:4px 0 14px">' + escL(l.titulo) + '</div>' +
+      fs2.map(function (f) {
+        return '<button type="button" data-fm="' + f.chave + '" style="display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;margin-bottom:8px;padding:13px 15px;border:1.5px solid var(--border);border-radius:12px;background:#fff;font:inherit;cursor:pointer;text-align:left">' +
+          '<span style="font-weight:700;color:var(--primary)">' + f.nome + '</span>' +
+          '<strong style="font-size:16px">R$ ' + f.preco.toFixed(2).replace('.', ',') + '</strong></button>';
+      }).join('') +
+      '<button type="button" data-fm-sair style="width:100%;margin-top:4px;padding:11px;border:0;border-radius:11px;background:transparent;color:var(--muted);font:inherit;cursor:pointer">Agora não</button></div>';
+    document.body.appendChild(fundo);
+    fundo.addEventListener('click', function (e) {
+      if (e.target === fundo || e.target.closest('[data-fm-sair]')) { fundo.remove(); return; }
+      var b2 = e.target.closest('[data-fm]'); if (!b2) return;
+      var f = fs2.find(function (x) { return x.chave === b2.dataset.fm; });
+      fundo.remove();
+      if (f) depois(f);
+    });
+  }
+
   function adicionar(id, ev) {
+    var l = catalogo()[id]; if (!l) return;
+    if (formatosDoLivro(l).length > 1) {
+      escolherFormato(l, function (f) { adicionarComFormato(id, f, ev); });
+      return;
+    }
+    adicionarComFormato(id, formatosDoLivro(l)[0], ev);
+  }
+
+  function adicionarComFormato(id, f, ev) {
+    var l = catalogo()[id]; if (!l || !f) return;
+    if (f.chave === 'fisico' && l.estoque === 0) { toast('Este livro está esgotado.'); return; }
+    var c = cart(), chaveItem = String(id) + ':' + f.chave;
+    var it = c.find(function (x) { return x.id === chaveItem; });
+    if (it) {
+      if (f.chave === 'fisico' && typeof l.estoque === 'number' && it.qty >= l.estoque) { toast('Só há ' + l.estoque + ' unidade(s) em estoque.'); return; }
+      it.qty++;
+    } else c.push({ id: chaveItem, titulo: l.titulo + (f.chave === 'audio' ? ' (audiolivro)' : (f.chave === 'ebook' ? ' (e-book)' : '')),
+      autor: l.autor, preco: f.preco, foto: l.foto || '', formato: f.chave, formatoEscolhido: f.chave,
+      autorId: l.autorId || null, livroId: l.livroId || null,
+      estoque: (f.chave === 'fisico' && typeof l.estoque === 'number' ? l.estoque : null), qty: 1 });
+    setCart(c);
+    var btn = ev && ev.target && ev.target.closest ? ev.target.closest('button') : null;
+    if (btn) { var o = btn.innerHTML; btn.innerHTML = '✓ No carrinho'; btn.style.background = '#0f8a4f'; btn.style.color = '#fff'; setTimeout(function () { btn.innerHTML = o; btn.style.background = ''; btn.style.color = ''; }, 1400); }
+    toast('“' + l.titulo + '” foi para o carrinho');
+    render();
+  }
+
+  function adicionarAntigo(id, ev) {
     var l = catalogo()[id]; if (!l) return;
     if (l.formato === 'fisico' && l.estoque === 0) { toast('Este livro está esgotado.'); return; }
     var c = cart(), it = c.find(function (x) { return x.id === String(id); });

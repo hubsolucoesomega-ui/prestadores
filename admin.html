@@ -1052,6 +1052,7 @@ var SERVICOS_PADRAO = [{"title": "Terapia e Bem-Estar", "items": [{"name": "Psic
 
   return {
     api: API, trocarSenha: trocarSenha, enviarPedido: enviarPedido, enviarCarta: enviarCarta, validarVale: validarVale,
+    call: call, token: function () { var s = sess(); return (s && s.token) || ''; },
     ocultos: ocultos, oculto: oculto, salvarOcultos: salvarOcultos, EXEMPLOS: EXEMPLOS,
     importarNavegador: importarNavegador, sairAdmin: sairAdmin, limparAntigos: limparAntigos,
     get CATEGORIAS() { return listaCategorias(); }, get GENEROS() { return catalogo().generos; }, catalogo: catalogo, salvarCatalogo: salvarCatalogo, SERVICOS_PADRAO: SERVICOS_PADRAO, LIMITS: LIMITS,
@@ -1596,11 +1597,24 @@ var SERVICOS_PADRAO = [{"title": "Terapia e Bem-Estar", "items": [{"name": "Psic
       return '<div class="item" style="align-items:flex-start;flex-wrap:wrap"><div class="th">📦</div><div class="bd"><strong>Pedido ' + esc(p.id) + '</strong> <span class="badge ' + st[1] + '">' + st[0] + '</span> <span class="badge b-gray">' + esc(p.pagamento) + '</span>' +
         '<div class="meta">' + esc(p.data) + ' · ' + esc(c.nome) + ' · ' + esc(c.whats) + ' · ' + esc(c.email) + (c.cpf ? ' · CPF ' + esc(c.cpf) : '') + '</div>' +
         '<div style="margin-top:6px;font-size:13.5px">' + (p.itens || []).map(function (i) { return esc(i.qty + '× ' + i.titulo + ' (' + i.autor + ')') + ' — ' + money(i.preco * i.qty) + (i.formato === 'ebook' ? ' · e-book' : ''); }).join('<br>') + '</div>' +
+        ((p.leituras || []).length ? '<div style="margin-top:8px;padding:9px 11px;border-radius:10px;background:#eef6ff;font-size:13px">📖 <strong>Chaves de leitura</strong> (o leitor abre o livro no site com elas):<br>' +
+          p.leituras.map(function (L) {
+            var link = location.origin + '/ler.html?chave=' + encodeURIComponent(L.codigo);
+            return '<code style="font-size:13.5px;letter-spacing:.5px">' + esc(L.codigo) + '</code> — ' + esc(L.titulo || '') +
+              ' <button class="btn btn-ghost btn-sm" type="button" data-copiar="' + esc(link) + '">Copiar link</button>';
+          }).join('<br>') + '</div>' : '') +
         '<div class="meta" style="margin-top:6px">' + (e ? 'Entrega: ' + esc(e.rua + ', ' + e.num + (e.comp ? ' ' + e.comp : '') + ' · ' + e.bairro + ' · ' + e.cidade + '/' + e.uf + ' · CEP ' + e.cep) : 'Somente e-book (envio por e-mail)') + (p.obs ? '<br>Obs.: ' + esc(p.obs) : '') + '</div></div>' +
         '<div class="ac" style="flex-direction:column;align-items:flex-end"><strong style="font-size:17px">' + money(p.total) + '</strong><select data-pd="' + esc(p.id) + '" style="border:1.5px solid var(--line-2);border-radius:10px;padding:7px 10px;font:inherit">' +
         Object.keys(PST).map(function (k) { return '<option value="' + k + '"' + (p.status === k ? ' selected' : '') + '>' + PST[k][0] + '</option>'; }).join('') + '</select><a class="btn btn-ghost btn-sm" href="' + wa + '" target="_blank" rel="noopener">WhatsApp do leitor</a></div></div>';
     }).join('') + '</div>';
   }
+  $('pd-lista').addEventListener('click', function (e) {
+    var cp = e.target.closest('[data-copiar]'); if (!cp) return;
+    var link = cp.dataset.copiar;
+    if (navigator.clipboard) navigator.clipboard.writeText(link).then(function () { toast('Link de leitura copiado.'); }, function () { window.prompt('Copie o link:', link); });
+    else window.prompt('Copie o link:', link);
+  });
+
   $('pd-lista').addEventListener('change', function (e) {
     var sel = e.target.closest('[data-pd]'); if (!sel) return;
     var all = pedidos(), p = all.find(function (x) { return x.id === sel.dataset.pd; }); if (!p) return;

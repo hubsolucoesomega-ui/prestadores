@@ -22,6 +22,8 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS config (chave TEXT PRIMARY KEY, dados TEXT NOT NULL, atualizado TEXT)',
   'CREATE TABLE IF NOT EXISTS tentativas (chave TEXT PRIMARY KEY, n INTEGER NOT NULL, ate INTEGER NOT NULL)',
   'CREATE TABLE IF NOT EXISTS vales (codigo TEXT PRIMARY KEY, dados TEXT NOT NULL, criado TEXT)',
+  'CREATE TABLE IF NOT EXISTS leituras (codigo TEXT PRIMARY KEY, dados TEXT NOT NULL, criado TEXT)',
+  'CREATE TABLE IF NOT EXISTS arquivos (id TEXT PRIMARY KEY, dono TEXT NOT NULL, nome TEXT, mime TEXT, tamanho INTEGER, protegido INTEGER NOT NULL DEFAULT 0, criado TEXT)',
   'CREATE INDEX IF NOT EXISTS midias_dono ON midias(dono)',
   'CREATE INDEX IF NOT EXISTS contas_status ON contas(status)'
 ];
@@ -32,7 +34,12 @@ export default {
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(req);
     try {
       if (!env.DB) return json({ erro: 'Banco de dados ainda não ligado.', db: false }, 503);
-      if (!schemaPronto) { await env.DB.batch(SCHEMA.map((s) => env.DB.prepare(s))); schemaPronto = true; }
+      if (!schemaPronto) {
+        await env.DB.batch(SCHEMA.map((s) => env.DB.prepare(s)));
+        // Bancos antigos não têm a coluna "protegida": acrescenta sem derrubar nada.
+        try { await env.DB.prepare('ALTER TABLE midias ADD COLUMN protegida INTEGER NOT NULL DEFAULT 0').run(); } catch (e) {}
+        schemaPronto = true;
+      }
       return await rotear(req, env, url);
     } catch (e) {
       if (e instanceof Falha) return json({ erro: e.message }, e.status);
@@ -50,11 +57,18 @@ async function rotear(req, env, url) {
   let r;
   if (p === '/api/estado') return json({ ok: true, db: true, admin: !!env.ADMIN_KEY });
   if (p === '/api/publico' && m === 'GET') return publicoTudo(env);
-  if ((r = p.match(/^\/api\/midia\/([a-f0-9]{16,64})$/)) && m === 'GET') return servirMidia(env, r[1], req);
+  if ((r = p.match(/^\/api\/midia\/([a-f0-9]{16,64})$/)) && m === 'GET') return servirMidia(env, r[1], req, url);
+  if ((r = p.match(/^\/api\/arquivo\/([a-f0-9]{16,64})$/))) {
+    if (m === 'GET' || m === 'HEAD') return servirArquivo(env, r[1], req, url, m === 'HEAD');
+    if (m === 'PUT') return guardarArquivo(req, env, r[1], url);
+    if (m === 'DELETE') return apagarArquivo(req, env, r[1]);
+  }
+  if (p === '/api/arquivo/novo' && m === 'POST') return novoIdDeArquivo(req, env);
   if (p === '/api/cadastro' && m === 'POST') return cadastro(req, env);
   if (p === '/api/login' && m === 'POST') return login(req, env);
   if (p === '/api/logout' && m === 'POST') { const t = bearer(req); if (t) await env.DB.prepare('DELETE FROM sessoes WHERE token = ?').bind(await sha(t)).run(); return json({ ok: true }); }
   if (p === '/api/vale/validar' && m === 'POST') return validarVale(req, env);
+    if ((r = p.match(/^\/api\/leitura\/([A-Za-z0-9]{10,24})$/)) && m === 'GET') return abrirLeitura(env, r[1].toUpperCase());
   if (p === '/api/pedidos' && m === 'POST') return novoPedido(req, env);
   if (p === '/api/cartas' && m === 'POST') return novaCarta(req, env);
 
@@ -79,6 +93,11 @@ async function rotear(req, env, url) {
       if (m === 'PUT' && r[1] === 'pedidos') { const b = await corpo(req); const d = b.item || {}; d.id = r[2];
         if (Array.isArray(d.valesGerados) && /pago|confirmad/i.test(String(d.status || ''))) {
           for (const cod of d.valesGerados) { const vv = await lerVale(env, cod); if (vv && vv.status === 'pendente') { vv.status = 'ativo'; await gravarVale(env, vv); } }
+        }
+        // Pagamento confirmado: gera as chaves de leitura dos ebooks deste pedido.
+        if (/pago|confirmad/i.test(String(d.status || ''))) {
+          const novas = await criarLeiturasDoPedido(env, d);
+          if (novas.length) d.leituras = (d.leituras || []).concat(novas);
         }
         await env.DB.prepare('INSERT INTO pedidos (id, dados, criado) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET dados = excluded.dados').bind(r[2], JSON.stringify(d), agora()).run();
         return json({ ok: true, item: d });
@@ -525,24 +544,27 @@ function limparBanners(lista) {
     }));
 }
 
+// Campos cujo arquivo só pode ser lido com chave de leitura (o livro inteiro).
+const CAMPOS_PROTEGIDOS = ['arquivoCompleto', 'epubCompleto', 'livroCompleto'];
+
 function extrairMidias(db, obj, dono, stmts) {
   const visitar = (o) => {
     if (!o || typeof o !== 'object') return;
     for (const k of Object.keys(o)) {
       const v = o[k];
-      if (typeof v === 'string' && v.length > 600 && v.startsWith('data:')) o[k] = gravarMidia(db, v, dono, stmts);
+      if (typeof v === 'string' && v.length > 600 && v.startsWith('data:')) o[k] = gravarMidia(db, v, dono, stmts, CAMPOS_PROTEGIDOS.includes(k));
       else if (v && typeof v === 'object') visitar(v);
     }
   };
   visitar(obj);
 }
-function gravarMidia(db, dataUri, dono, stmts) {
+function gravarMidia(db, dataUri, dono, stmts, protegida) {
   const m = /^data:([\w.+\/-]+)?(;[\w=-]+)*;base64,/.exec(dataUri.slice(0, 200));
   if (!m) return dataUri;
   const bin = atob(dataUri.slice(m[0].length));
   if (bin.length > MAX_MIDIA) throw new Falha('Arquivo grande demais (máximo ' + Math.round(MAX_MIDIA / 1048576) + ' MB). Para vídeos maiores, use um link do YouTube.', 413);
   const id = rand(16), partes = Math.max(1, Math.ceil(bin.length / PARTE));
-  stmts.push(db.prepare('INSERT INTO midias (id, dono, mime, tamanho, partes, criado) VALUES (?, ?, ?, ?, ?, ?)').bind(id, dono, m[1] || 'application/octet-stream', bin.length, partes, agora()));
+  stmts.push(db.prepare('INSERT INTO midias (id, dono, mime, tamanho, partes, criado, protegida) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, dono, m[1] || 'application/octet-stream', bin.length, partes, agora(), protegida ? 1 : 0));
   for (let n = 0; n < partes; n++) {
     const pedaco = bin.slice(n * PARTE, (n + 1) * PARTE), bytes = new Uint8Array(pedaco.length);
     for (let i = 0; i < pedaco.length; i++) bytes[i] = pedaco.charCodeAt(i);
@@ -561,13 +583,21 @@ async function limparOrfas(env, dono, obj) {
   await env.DB.batch(stmts);
 }
 
-async function servirMidia(env, id, req) {
-  const m = await env.DB.prepare('SELECT mime, tamanho FROM midias WHERE id = ?').bind(id).first();
+async function servirMidia(env, id, req, url) {
+  const m = await env.DB.prepare('SELECT mime, tamanho, protegida FROM midias WHERE id = ?').bind(id).first();
   if (!m) return new Response('Arquivo não encontrado', { status: 404 });
+  // Arquivo protegido (o livro inteiro): só sai com chave de leitura válida ou com a chave do ADM.
+  if (m.protegida) {
+    const chave = (url && url.searchParams.get('chave')) || '';
+    const ehAdm = !!env.ADMIN_KEY && igual(bearer(req) || '', env.ADMIN_KEY);
+    if (!ehAdm && !(await leituraValida(env, chave, id))) {
+      return new Response('Este livro é de quem comprou. Abra pelo link que você recebeu na compra.', { status: 403 });
+    }
+  }
   const rs = await env.DB.prepare('SELECT dados FROM midia_partes WHERE midia_id = ? ORDER BY n').bind(id).all();
   const total = new Uint8Array(m.tamanho); let pos = 0;
   rs.results.forEach((x) => { const b = new Uint8Array(x.dados); total.set(b, pos); pos += b.length; });
-  const h = { 'Content-Type': m.mime, 'Cache-Control': 'public, max-age=31536000, immutable', 'Accept-Ranges': 'bytes', 'X-Content-Type-Options': 'nosniff' };
+  const h = { 'Content-Type': m.mime, 'Cache-Control': m.protegida ? 'private, no-store' : 'public, max-age=31536000, immutable', 'Accept-Ranges': 'bytes', 'X-Content-Type-Options': 'nosniff' };
   const range = /bytes=(\d*)-(\d*)/.exec(req.headers.get('Range') || '');
   if (range) {
     let ini = range[1] === '' ? Math.max(0, total.length - parseInt(range[2], 10)) : parseInt(range[1], 10);
@@ -576,6 +606,190 @@ async function servirMidia(env, id, req) {
     return new Response(total.slice(ini, fim + 1), { status: 206, headers: Object.assign(h, { 'Content-Range': `bytes ${ini}-${fim}/${total.length}`, 'Content-Length': String(fim - ini + 1) }) });
   }
   return new Response(total, { headers: Object.assign(h, { 'Content-Length': String(total.length) }) });
+}
+
+
+
+// ---------------------------------------------------------------- arquivos grandes (R2)
+// Audiolivros não cabem no banco: ficam no R2, e o Worker continua sendo o porteiro.
+// O envio é feito direto em binário (PUT), sem base64, para aguentar centenas de MB.
+const MAX_R2 = 600 * 1024 * 1024;
+
+function exigirR2(env) {
+  if (!env.R2) throw new Falha('O armazenamento de arquivos grandes (R2) ainda não está ligado neste Worker.', 503);
+  return env.R2;
+}
+
+// Quem pode enviar: o Painel ADM ou o autor logado.
+async function quemEnvia(req, env) {
+  if (env.ADMIN_KEY && igual(bearer(req) || '', env.ADMIN_KEY)) return { id: 'admin', adm: true };
+  const conta = await contaDaSessao(req, env);
+  return { id: conta.id, adm: false };
+}
+
+async function novoIdDeArquivo(req, env) {
+  exigirR2(env);
+  const dono = await quemEnvia(req, env);
+  const b = await corpo(req);
+  const id = rand(16);
+  const protegido = b.protegido === false ? 0 : 1;        // por padrão é protegido
+  await env.DB.prepare('INSERT INTO arquivos (id, dono, nome, mime, tamanho, protegido, criado) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, dono.id, texto(b.nome, 200), texto(b.mime, 100) || 'application/octet-stream', 0, protegido, agora()).run();
+  return json({ id, endereco: '/api/arquivo/' + id }, 201);
+}
+
+async function guardarArquivo(req, env, id, url) {
+  const r2 = exigirR2(env);
+  const dono = await quemEnvia(req, env);
+  const reg = await env.DB.prepare('SELECT * FROM arquivos WHERE id = ?').bind(id).first();
+  if (!reg) throw new Falha('Arquivo não encontrado. Peça um endereço novo antes de enviar.', 404);
+  if (!dono.adm && reg.dono !== dono.id) throw new Falha('Este arquivo é de outra conta.', 403);
+  const tam = Number(req.headers.get('Content-Length') || 0);
+  if (tam > MAX_R2) throw new Falha('Arquivo grande demais (máximo ' + Math.round(MAX_R2 / 1048576) + ' MB).', 413);
+  const mime = req.headers.get('Content-Type') || reg.mime || 'application/octet-stream';
+  const salvo = await r2.put('arquivos/' + id, req.body, { httpMetadata: { contentType: mime } });
+  await env.DB.prepare('UPDATE arquivos SET mime = ?, tamanho = ? WHERE id = ?')
+    .bind(mime, (salvo && salvo.size) || tam, id).run();
+  return json({ ok: true, endereco: '/api/arquivo/' + id, tamanho: (salvo && salvo.size) || tam });
+}
+
+async function apagarArquivo(req, env, id) {
+  const r2 = exigirR2(env);
+  const dono = await quemEnvia(req, env);
+  const reg = await env.DB.prepare('SELECT * FROM arquivos WHERE id = ?').bind(id).first();
+  if (!reg) return json({ ok: true });
+  if (!dono.adm && reg.dono !== dono.id) throw new Falha('Este arquivo é de outra conta.', 403);
+  await r2.delete('arquivos/' + id);
+  await env.DB.prepare('DELETE FROM arquivos WHERE id = ?').bind(id).run();
+  return json({ ok: true });
+}
+
+// Entrega o arquivo. Protegido só sai com chave de leitura; áudio precisa de Range
+// para a pessoa poder arrastar a barra do tocador.
+async function servirArquivo(env, id, req, url, soCabecalho) {
+  const r2 = exigirR2(env);
+  const reg = await env.DB.prepare('SELECT * FROM arquivos WHERE id = ?').bind(id).first();
+  if (!reg) return new Response('Arquivo não encontrado', { status: 404 });
+  if (reg.protegido) {
+    const chave = (url && url.searchParams.get('chave')) || '';
+    const ehAdm = !!env.ADMIN_KEY && igual(bearer(req) || '', env.ADMIN_KEY);
+    if (!ehAdm && !(await leituraValida(env, chave, id))) {
+      return new Response('Este arquivo é de quem comprou. Abra pelo link que você recebeu na compra.', { status: 403 });
+    }
+  }
+  const range = /bytes=(\d*)-(\d*)/.exec(req.headers.get('Range') || '');
+  const h = {
+    'Content-Type': reg.mime || 'application/octet-stream',
+    'Cache-Control': reg.protegido ? 'private, no-store' : 'public, max-age=86400',
+    'Accept-Ranges': 'bytes',
+    'X-Content-Type-Options': 'nosniff'
+  };
+  if (soCabecalho) return new Response(null, { headers: Object.assign(h, { 'Content-Length': String(reg.tamanho || 0) }) });
+
+  if (range && reg.tamanho) {
+    const total = Number(reg.tamanho);
+    let ini = range[1] === '' ? Math.max(0, total - parseInt(range[2], 10)) : parseInt(range[1], 10);
+    let fim = range[1] !== '' && range[2] !== '' ? Math.min(parseInt(range[2], 10), total - 1) : total - 1;
+    if (!(ini >= 0) || ini > fim || ini >= total) return new Response(null, { status: 416, headers: { 'Content-Range': 'bytes */' + total } });
+    const parte = await r2.get('arquivos/' + id, { range: { offset: ini, length: fim - ini + 1 } });
+    if (!parte) return new Response('Arquivo não encontrado', { status: 404 });
+    return new Response(parte.body, { status: 206, headers: Object.assign(h, {
+      'Content-Range': 'bytes ' + ini + '-' + fim + '/' + total, 'Content-Length': String(fim - ini + 1) }) });
+  }
+  const obj = await r2.get('arquivos/' + id);
+  if (!obj) return new Response('Arquivo não encontrado', { status: 404 });
+  return new Response(obj.body, { headers: Object.assign(h, { 'Content-Length': String(reg.tamanho || obj.size || 0) }) });
+}
+
+// ---------------------------------------------------------------- leitura de ebooks
+// Cada compra paga de um ebook gera uma "chave de leitura": um código que abre o
+// livro inteiro no leitor do site, sem precisar de login.
+function novoCodigoLeitura() {
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  let t = '';
+  for (let i = 0; i < 16; i++) t += ALFA_VALE[b[i] % ALFA_VALE.length];
+  return t;
+}
+
+async function lerLeitura(env, codigo) {
+  const row = await env.DB.prepare('SELECT dados FROM leituras WHERE codigo = ?').bind(String(codigo || '').toUpperCase()).first();
+  return row ? JSON.parse(row.dados) : null;
+}
+
+async function gravarLeitura(env, l) {
+  await env.DB.prepare('INSERT INTO leituras (codigo, dados, criado) VALUES (?, ?, ?) ON CONFLICT(codigo) DO UPDATE SET dados = excluded.dados')
+    .bind(l.codigo, JSON.stringify(l), l.criado || agora()).run();
+}
+
+// A chave vale para um arquivo? Usada antes de entregar qualquer arquivo protegido.
+async function leituraValida(env, codigo, midiaId) {
+  if (!/^[A-Z0-9]{10,24}$/.test(String(codigo || '').toUpperCase())) return false;
+  const l = await lerLeitura(env, codigo);
+  if (!l || l.status !== 'ativa') return false;
+  if (l.validade && l.validade < agora().slice(0, 10)) return false;
+  return Array.isArray(l.midias) && l.midias.indexOf(midiaId) >= 0;
+}
+
+// O que a compra libera, conforme o formato escolhido: o EPUB ou as faixas do audiolivro.
+function arquivosDoLivro(conta, livroId, formato) {
+  const l = (conta.livros || []).find((x) => x.id === livroId);
+  if (!l) return null;
+  const idDe = (v) => {
+    const s = typeof v === 'string' ? v : (v && (v.src || v.arquivo || v.endereco)) || '';
+    const m = /\/api\/(?:midia|arquivo)\/([a-f0-9]{16,64})/.exec(s);
+    return m ? m[1] : null;
+  };
+  if (formato === 'audio') {
+    const faixas = (l.audio || []).map((f, i) => ({
+      id: idDe(f), titulo: (f && f.titulo) || ('Faixa ' + (i + 1)), duracao: (f && f.duracao) || 0
+    })).filter((f) => f.id);
+    if (!faixas.length) return null;
+    return { tipo: 'audio', ids: faixas.map((f) => f.id), faixas, titulo: l.titulo || '' };
+  }
+  const id = idDe(l.arquivoCompleto || l.epubCompleto || l.livroCompleto);
+  if (!id) return null;
+  return { tipo: 'ebook', ids: [id], titulo: l.titulo || '' };
+}
+
+// Gera as chaves dos itens digitais de um pedido pago. Devolve a lista criada.
+async function criarLeiturasDoPedido(env, p) {
+  const feitas = [];
+  const itens = (p.itens || []).filter((i) => i && i.autorId && i.livroId && i.tipo !== 'vale');
+  for (const i of itens) {
+    const formato = i.formatoEscolhido || i.formato || 'ebook';
+    if (formato === 'fisico') continue;                      // livro em papel não tem chave
+    const row = await env.DB.prepare('SELECT dados FROM contas WHERE id = ?').bind(i.autorId).first();
+    if (!row) continue;
+    const arq = arquivosDoLivro(JSON.parse(row.dados), i.livroId, formato);
+    if (!arq) continue;                                      // sem arquivo: nada a liberar
+    if ((p.leituras || []).some((x) => x.livroId === i.livroId && x.formato === formato)) continue;
+    const l = {
+      codigo: novoCodigoLeitura(), status: 'ativa', criado: agora(),
+      pedidoId: p.id, livroId: i.livroId, autorId: i.autorId, formato: arq.tipo,
+      titulo: arq.titulo || i.titulo || '', autor: i.autor || '',
+      midias: arq.ids, faixas: arq.faixas || null, validade: '',
+      nome: (p.cliente && p.cliente.nome) || '', email: (p.cliente && p.cliente.email) || ''
+    };
+    await gravarLeitura(env, l);
+    feitas.push({ codigo: l.codigo, livroId: l.livroId, titulo: l.titulo, formato: l.formato });
+  }
+  return feitas;
+}
+
+// O leitor pergunta o que uma chave abre.
+async function abrirLeitura(env, codigo) {
+  const l = await lerLeitura(env, codigo);
+  if (!l) throw new Falha('Chave de leitura não encontrada. Confira o link que você recebeu.', 404);
+  if (l.status !== 'ativa') throw new Falha('Esta chave de leitura foi cancelada.', 403);
+  if (l.validade && l.validade < agora().slice(0, 10)) throw new Falha('Esta chave de leitura venceu.', 403);
+  if (l.formato === 'audio') {
+    const faixas = (l.faixas || l.midias.map((id, i) => ({ id, titulo: 'Faixa ' + (i + 1) })))
+      .map((f, i) => ({ titulo: f.titulo || ('Faixa ' + (i + 1)), duracao: f.duracao || 0,
+        arquivo: '/api/arquivo/' + (f.id || l.midias[i]) + '?chave=' + l.codigo }));
+    return json({ ok: true, formato: 'audio', titulo: l.titulo, autor: l.autor, livroId: l.livroId, faixas });
+  }
+  return json({ ok: true, formato: 'ebook', titulo: l.titulo, autor: l.autor, livroId: l.livroId,
+    arquivo: '/api/midia/' + l.midias[0] + '?chave=' + l.codigo });
 }
 
 // ---------------------------------------------------------------- senhas

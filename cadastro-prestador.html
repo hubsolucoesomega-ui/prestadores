@@ -1122,6 +1122,7 @@ var SERVICOS_PADRAO = [{"title": "Terapia e Bem-Estar", "items": [{"name": "Psic
 
   return {
     api: API, trocarSenha: trocarSenha, enviarPedido: enviarPedido, enviarCarta: enviarCarta, validarVale: validarVale,
+    call: call, token: function () { var s = sess(); return (s && s.token) || ''; },
     ocultos: ocultos, oculto: oculto, salvarOcultos: salvarOcultos, EXEMPLOS: EXEMPLOS,
     importarNavegador: importarNavegador, sairAdmin: sairAdmin,
     get CATEGORIAS() { return listaCategorias(); }, get GENEROS() { return catalogo().generos; }, catalogo: catalogo, salvarCatalogo: salvarCatalogo, SERVICOS_PADRAO: SERVICOS_PADRAO, LIMITS: LIMITS,

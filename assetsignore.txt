@@ -1,0 +1,9 @@
+worker.js
+wrangler.toml
+schema-d1.sql
+supabase
+README.md
+SETUP-BANCO.md
+.wrangler
+node_modules
+*.zip
