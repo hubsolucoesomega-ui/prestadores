@@ -31,7 +31,15 @@ const SCHEMA = [
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
-    if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(req);
+    if (!url.pathname.startsWith('/api/')) {
+      // Cada subdomínio abre a sua própria página inicial:
+      // livros.<dominio> cai na livraria; o resto cai em Serviços.
+      const host = (url.hostname || '').toLowerCase();
+      if ((url.pathname === '/' || url.pathname === '') && host.startsWith('livros.')) {
+        return env.ASSETS.fetch(new Request(new URL('/livros', url), req));
+      }
+      return env.ASSETS.fetch(req);
+    }
     try {
       if (!env.DB) return json({ erro: 'Banco de dados ainda não ligado.', db: false }, 503);
       if (!schemaPronto) {
